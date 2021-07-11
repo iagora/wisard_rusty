@@ -5,4 +5,19 @@ edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[[bin]]
+name = "front"
+path = "src/bin/front/main.rs"
+
+[[bin]]
+name = "worker"
+path = "src/bin/worker/main.rs"
+
 [dependencies]
+image = "0.23.14"
+rocket = "0.4.10"
+kube = "0.58.1"
+kube-runtime = "0.58.1"
+k8s-openapi = { version = "0.12.0", default-features = false, features = [
+    "v1_20",
+] }
