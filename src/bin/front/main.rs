@@ -2,6 +2,7 @@
 
 #[macro_use]
 extern crate rocket;
+mod wisard;
 
 #[get("/")]
 fn index() -> &'static str {

@@ -3,6 +3,7 @@
 #[macro_use]
 extern crate rocket;
 // use rocket::response::content::Json;
+use serde::Serialize;
 mod worker;
 
 #[get("/")]
