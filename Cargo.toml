@@ -5,6 +5,10 @@ edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[lib]
+name = "libwisard"
+path = "src/lib/lib.rs"
+
 [[bin]]
 name = "front"
 path = "src/bin/front/main.rs"
