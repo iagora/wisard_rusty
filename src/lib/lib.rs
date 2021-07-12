@@ -110,12 +110,12 @@ impl Wisard {
 }
 
 #[cfg(test)]
-mod tests {
+mod lib_tests {
     // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;
 
     #[test]
-    fn test_ranks() {
+    fn test_lib_ranks() {
         let mut wis = Wisard::new(28, 8);
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
@@ -127,7 +127,7 @@ mod tests {
         assert!(!wis.rank_tables.is_empty());
     }
     #[test]
-    fn test_rank_table_length() {
+    fn test_lib_rank_table_length() {
         let mut wis = Wisard::new(28, 8);
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
@@ -149,7 +149,7 @@ mod tests {
     }
 
     #[test]
-    fn test_rank_addresses() {
+    fn test_lib_rank_addresses() {
         let mut wis = Wisard::new(28, 8);
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
@@ -161,7 +161,7 @@ mod tests {
         assert_eq!(addresses, vec![0, 1, 2, 3, 4, 5, 6, 7, 8]);
     }
     #[test]
-    fn test_rank_differente_addresses() {
+    fn test_lib_rank_different_addresses() {
         let mut wis = Wisard::new(28, 8);
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
