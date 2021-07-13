@@ -1,6 +1,8 @@
-use image::{GrayImage, RgbImage};
+use image::GrayImage;
+use rayon::prelude::*;
 use std::collections::HashMap;
 
+#[derive(Clone)]
 pub struct Discriminator {
     number_of_hashtables: u16,
     h_rams: Vec<HashMap<u64, u16>>,
@@ -25,7 +27,7 @@ impl Discriminator {
         self.times_trained += 1;
     }
 
-    pub fn classify(self, x: Vec<u64>, bleach: u16) -> (u64, u64) {
+    pub fn classify(self, x: &Vec<u64>, bleach: u16) -> (u64, u64) {
         let mut votes: u64 = 0;
         for i in 0..self.number_of_hashtables {
             let key = x[i as usize];
@@ -46,6 +48,7 @@ pub struct Wisard {
     mapping: Vec<u64>,
     last_rank: u64,
     rank_tables: HashMap<Vec<u64>, u64>,
+    bleach: u16,
 }
 
 impl Wisard {
@@ -57,6 +60,7 @@ impl Wisard {
             mapping: (0..addr_length as u64 * number_of_hashtables as u64).collect::<Vec<u64>>(),
             last_rank: 0,
             rank_tables: HashMap::new(),
+            bleach: 0,
         }
     }
 
@@ -104,8 +108,32 @@ impl Wisard {
         disc.train(addresses);
     }
 
-    pub fn classiy(self, img: GrayImage) {
-        unimplemented!();
+    pub fn classify(&mut self, img: GrayImage) -> (String, f64, f64) {
+        let flat_image = img.into_flat_samples().to_vec().samples;
+        let samples: Vec<u8> = flat_image
+            .iter()
+            .enumerate()
+            .filter(|&(i, _)| self.mapping.contains(&(i as u64)))
+            .map(|(_, e)| *e)
+            .collect();
+        let addresses: Vec<u64> = self.ranks(samples);
+        let discs = self.discs.clone();
+        let mut votes: Vec<(String, (u64, u64))> = discs
+            .into_par_iter()
+            .map(|d| (d.0, d.1.classify(&addresses, self.bleach)))
+            .collect();
+        votes.sort_by(|a, b| (a.1).0.partial_cmp(&(b.1).0).unwrap());
+
+        let biggest = votes.len().checked_sub(1).map(|i| &votes[i]).unwrap();
+        let second_biggest = votes.len().checked_sub(2).map(|i| &votes[i]).unwrap();
+
+        let confidence = (biggest.1 .0 as f64 - second_biggest.1 .0 as f64) / biggest.1 .0 as f64;
+
+        (
+            biggest.0.clone(),
+            (biggest.1 .0 as f64 / self.number_of_hashtables as f64).clone(),
+            confidence.clone(),
+        )
     }
 }
 

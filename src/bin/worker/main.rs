@@ -3,7 +3,7 @@
 #[macro_use]
 extern crate rocket;
 // use rocket::response::content::Json;
-use serde::Serialize;
+// use serde::Serialize;
 mod worker;
 
 #[get("/")]
@@ -12,6 +12,6 @@ fn index() -> &'static str {
 }
 
 fn main() {
-    let d = worker::Discriminator::new(28);
+    let _d = worker::Discriminator::new(28);
     rocket::ignite().mount("/", routes![index]).launch();
 }
