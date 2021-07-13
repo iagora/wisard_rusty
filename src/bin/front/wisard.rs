@@ -1,4 +1,4 @@
-use image::{GrayImage, RgbImage};
+use image::GrayImage;
 use std::collections::HashMap;
 
 pub struct Wisard {
@@ -60,14 +60,40 @@ impl Wisard {
             .filter(|&(i, _)| self.mapping.contains(&(i as u64)))
             .map(|(_, e)| *e)
             .collect();
-        let addresses: Vec<u64> = self.ranks(samples);
-        let disc = self.discs.get_mut(&label).unwrap();
+        let _addresses: Vec<u64> = self.ranks(samples);
+        let _disc = self.discs.get_mut(&label).unwrap();
         // disc.train(addresses); // TODO: make request to Discriminator API
         unimplemented!();
     }
 
-    pub fn classiy(self, img: GrayImage) {
-        unimplemented!();
+    pub fn classify(&mut self, img: GrayImage) -> (String, f64, f64) {
+        let flat_image = img.into_flat_samples().to_vec().samples;
+        let samples: Vec<u8> = flat_image
+            .iter()
+            .enumerate()
+            .filter(|&(i, _)| self.mapping.contains(&(i as u64)))
+            .map(|(_, e)| *e)
+            .collect();
+        let _addresses: Vec<u64> = self.ranks(samples);
+        let _discs = self.discs.clone();
+        // let mut votes: Vec<(String, (u64, u64))> = discs
+        //     .into_par_iter()
+        //     .map(|d| (d.0, d.1.classify(&addresses, self.bleach)))
+        //     .collect();
+        // TODO: make resquest to Disciminator's API
+        let mut votes: Vec<(String, (u64, u64))> = Vec::new();
+        votes.sort_by(|a, b| (a.1).0.partial_cmp(&(b.1).0).unwrap());
+
+        let biggest = votes.len().checked_sub(1).map(|i| &votes[i]).unwrap();
+        let second_biggest = votes.len().checked_sub(2).map(|i| &votes[i]).unwrap();
+
+        let confidence = (biggest.1 .0 as f64 - second_biggest.1 .0 as f64) / biggest.1 .0 as f64;
+
+        (
+            biggest.0.clone(),
+            (biggest.1 .0 as f64 / self.number_of_hashtables as f64).clone(),
+            confidence.clone(),
+        )
     }
 }
 
