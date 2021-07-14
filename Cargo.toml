@@ -29,6 +29,7 @@ codegen-units = 1
 rustflags = ["-C target-feature=native"]
 
 [dependencies]
+rand = "0.8.4"
 byteorder = "1.4.3"
 ndarray = "0.15.3"
 flate2 = "1.0.20"
