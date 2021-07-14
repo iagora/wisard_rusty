@@ -10,7 +10,10 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
     // println!("Dataset: {}", config.dataset_name);
     println!("Address size: {}", config.address_size);
 
-    let mut wis = wisard::Wisard::new(28, config.address_size.parse::<u64>()?);
+    let mut wis = wisard::Wisard::new(
+        config.number_of_hashtables.parse::<u16>()?,
+        config.address_size.parse::<u64>()?,
+    );
 
     let now = Instant::now();
 
@@ -34,6 +37,8 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
 
     let classifications: Vec<u8> = label_data.data.clone();
 
+    println!("Training data has {} images", classifications.len());
+
     let now = Instant::now();
     for (image, classification) in images.into_iter().zip(classifications.into_iter()) {
         wis.train(image, classification.to_string());
@@ -55,6 +60,7 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
 
     let classifications: Vec<u8> = label_data.data.clone();
 
+    println!("Test data has {} images", classifications.len());
     let mut hit: u64 = 0;
     let mut count: u64 = 0;
 
@@ -77,6 +83,7 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
 
 pub struct Config {
     // pub filename: String,
+    pub number_of_hashtables: String,
     pub address_size: String,
 }
 
@@ -94,13 +101,18 @@ impl Config {
         //     None => return Err("We only run for mnist at the moment :/"),
         // };
 
+        let number_of_hashtables = match args.next() {
+            Some(arg) => arg,
+            None => return Err("Didn't get number of hashtables size"),
+        };
+
         let address_size = match args.next() {
             Some(arg) => arg,
             None => return Err("Didn't get address size"),
         };
 
         Ok(Config {
-            // filename,
+            number_of_hashtables,
             address_size,
         })
     }

@@ -1,4 +1,6 @@
 // use rayon::prelude::*;
+use rand::seq::SliceRandom;
+use rand::thread_rng;
 use std::collections::HashMap;
 
 #[derive(Clone)]
@@ -57,11 +59,16 @@ pub struct Wisard {
 
 impl Wisard {
     pub fn new(number_of_hashtables: u16, addr_length: u64) -> Wisard {
+        // randomizes the mapping
+        let mut rng_mapping =
+            (0..addr_length as u64 * number_of_hashtables as u64).collect::<Vec<u64>>();
+        rng_mapping.shuffle(&mut thread_rng());
+
         Wisard {
             discs: HashMap::new(),
             addr_length: addr_length,
             number_of_hashtables: number_of_hashtables,
-            mapping: (0..addr_length as u64 * number_of_hashtables as u64).collect::<Vec<u64>>(),
+            mapping: rng_mapping,
             last_rank: 0,
             rank_tables: HashMap::new(),
             bleach: 0,

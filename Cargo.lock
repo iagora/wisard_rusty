@@ -2098,6 +2098,7 @@ dependencies = [
  "kube",
  "kube-runtime",
  "ndarray",
+ "rand",
  "rayon",
  "rocket",
  "serde",
