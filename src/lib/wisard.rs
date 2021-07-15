@@ -1,6 +1,5 @@
 use rand::seq::SliceRandom;
 use rand::thread_rng;
-use rayon::prelude::*;
 use std::collections::HashMap;
 
 #[derive(Clone)]
@@ -126,7 +125,7 @@ impl Wisard {
         let addresses: Vec<u64> = self.ranks(samples);
         let discs = &self.discs;
         let mut votes: Vec<(String, (u64, u64))> = discs
-            .par_iter() //.into_iter()
+            .iter()
             .map(|d| (d.0.to_string(), d.1.classify(&addresses, self.bleach)))
             .collect();
         votes.sort_by(|a, b| (a.1).0.partial_cmp(&(b.1).0).unwrap());
