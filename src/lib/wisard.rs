@@ -1,6 +1,7 @@
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use std::collections::HashMap;
+use std::marker::PhantomData;
 
 #[derive(Clone)]
 pub struct Discriminator {
@@ -18,7 +19,7 @@ impl Discriminator {
         }
     }
 
-    pub fn train(&mut self, x: Vec<u64>) -> () {
+    pub fn train(&mut self, x: Vec<u64>) {
         for i in 0..self.number_of_hashtables {
             let key = x[i as usize];
             let counter = self
@@ -46,7 +47,7 @@ impl Discriminator {
     }
 }
 
-pub struct Wisard {
+pub struct Wisard<T> {
     discs: HashMap<String, Discriminator>,
     addr_length: u64,
     number_of_hashtables: u16,
@@ -54,16 +55,20 @@ pub struct Wisard {
     last_rank: u64,
     rank_tables: HashMap<Vec<u64>, u64>,
     bleach: u16,
+    phantom: PhantomData<T>,
 }
 
-impl Wisard {
-    pub fn new(number_of_hashtables: u16, addr_length: u64, bleach: u16) -> Wisard {
+impl<T> Wisard<T> {
+    pub fn new(number_of_hashtables: u16, addr_length: u64, bleach: u16) -> Wisard<T>
+    where
+        T: PartialOrd + Copy,
+    {
         // randomizes the mapping
         let mut rng_mapping =
             (0..addr_length as u64 * number_of_hashtables as u64).collect::<Vec<u64>>();
         rng_mapping.shuffle(&mut thread_rng());
 
-        Wisard {
+        Wisard::<T> {
             discs: HashMap::new(),
             addr_length: addr_length,
             number_of_hashtables: number_of_hashtables,
@@ -71,10 +76,14 @@ impl Wisard {
             last_rank: 0,
             rank_tables: HashMap::new(),
             bleach: bleach,
+            phantom: PhantomData,
         }
     }
 
-    fn ranks<T: PartialOrd + Clone>(&mut self, samples: Vec<T>) -> Vec<u64> {
+    fn ranks(&mut self, samples: Vec<T>) -> Vec<u64>
+    where
+        T: PartialOrd + Copy,
+    {
         let mut vetor = Vec::with_capacity(self.addr_length as usize);
         let mut addresses = Vec::new();
         for i in (0..samples.len()).step_by(self.addr_length as usize) {
@@ -100,7 +109,10 @@ impl Wisard {
         addresses
     }
 
-    pub fn train(&mut self, img: Vec<u8>, label: String) {
+    pub fn train(&mut self, data: Vec<T>, label: String)
+    where
+        T: PartialOrd + Copy,
+    {
         if !self.discs.contains_key(&label) {
             self.discs
                 .insert(label.clone(), Discriminator::new(self.number_of_hashtables));
@@ -109,18 +121,21 @@ impl Wisard {
         let samples = self.mapping.clone();
         let samples = samples
             .iter()
-            .map(|&i| img.get(i as usize).unwrap())
+            .map(|&i| *data.get(i as usize).unwrap())
             .collect();
         let addresses: Vec<u64> = self.ranks(samples);
         let disc = self.discs.get_mut(&label).unwrap();
         disc.train(addresses);
     }
 
-    pub fn classify(&mut self, img: Vec<u8>) -> (String, f64, f64) {
+    pub fn classify(&mut self, data: Vec<T>) -> (String, f64, f64)
+    where
+        T: PartialOrd + Copy,
+    {
         let samples = self.mapping.clone();
         let samples = samples
             .iter()
-            .map(|&i| img.get(i as usize).unwrap())
+            .map(|&i| *data.get(i as usize).unwrap())
             .collect();
         let addresses: Vec<u64> = self.ranks(samples);
         let discs = &self.discs;
@@ -148,7 +163,7 @@ mod lib_tests {
     #[test]
     fn test_lib_ranks() {
         // this test verifies that ranks is able to push address to rank_tables
-        let mut wis = Wisard::new(28, 8, 0);
+        let mut wis = Wisard::<u8>::new(28, 8, 0);
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
             107, 73, 168, 95, 63, 11, 2, 49, 130, 43, 92, 110, 13, 157, 125, 6, 93, 119, 86, 85,
@@ -162,7 +177,7 @@ mod lib_tests {
     fn test_lib_rank_table_length() {
         // this test ensures that the same addresses aren't pushed into the rank_tables
         // repeatedly
-        let mut wis = Wisard::new(28, 8, 0);
+        let mut wis = Wisard::<u64>::new(28, 8, 0);
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
             107, 73, 168, 95, 63, 11, 2, 49, 130, 43, 92, 110, 13, 157, 125, 6, 93, 119, 86, 85,
@@ -185,7 +200,7 @@ mod lib_tests {
     #[test]
     fn test_lib_rank_addresses() {
         // this test verifies that for each new piece of data, a correct rank is attributed
-        let mut wis = Wisard::new(28, 8, 0);
+        let mut wis = Wisard::<u16>::new(28, 8, 0);
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
             107, 73, 168, 95, 63, 11, 2, 49, 130, 43, 92, 110, 13, 157, 125, 6, 93, 119, 86, 85,
@@ -198,7 +213,7 @@ mod lib_tests {
     #[test]
     fn test_lib_rank_different_addresses() {
         // this test verifies that small changes in data get close addresses
-        let mut wis = Wisard::new(28, 8, 0);
+        let mut wis = Wisard::<u8>::new(28, 8, 0);
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
             107, 73, 168, 95, 63, 11, 2, 49, 130, 43, 92, 110, 13, 157, 125, 6, 93, 119, 86, 85,
