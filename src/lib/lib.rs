@@ -10,10 +10,12 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
     println!("Rusty WiSARD - MNIST 🦀🦀🦀");
     println!("Number of hashtables: {}", config.number_of_hashtables);
     println!("Address size: {}", config.address_size);
+    println!("Bleaching: {}", config.bleach);
 
     let mut wis = wisard::Wisard::new(
         config.number_of_hashtables.parse::<u16>()?,
         config.address_size.parse::<u64>()?,
+        config.bleach.parse::<u16>()?,
     );
     println!("\n-----------------\nTraining\n-----------------");
     let now = Instant::now();
@@ -43,7 +45,7 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
     for (image, classification) in images.into_iter().zip(classifications.into_iter()) {
         wis.train(image, classification.to_string());
     }
-    println!("Training took: {} seconds", now.elapsed().as_secs());
+    println!("Training took: {} milliseconds", now.elapsed().as_millis());
 
     println!("\n-----------------\nTesting\n-----------------");
     let now = Instant::now();
@@ -79,7 +81,10 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
         }
         count += 1;
     }
-    println!("Classifying took: {} seconds", now.elapsed().as_secs());
+    println!(
+        "Classifying took: {} milliseconds",
+        now.elapsed().as_millis()
+    );
 
     println!("Accuracy: {}", hit as f64 / count as f64);
 
@@ -90,21 +95,12 @@ pub struct Config {
     // pub filename: String,
     pub number_of_hashtables: String,
     pub address_size: String,
+    pub bleach: String,
 }
 
 impl Config {
     pub fn new(mut args: env::Args) -> Result<Config, &'static str> {
         args.next();
-        // let filename = match args.next() {
-        //     Some(arg) => {
-        //         if arg == "mnist" {
-        //             arg
-        //         } else {
-        //             return Err("We only run for mnist at the moment :/");
-        //         }
-        //     }
-        //     None => return Err("We only run for mnist at the moment :/"),
-        // };
 
         let number_of_hashtables = match args.next() {
             Some(arg) => arg,
@@ -116,9 +112,15 @@ impl Config {
             None => return Err("Didn't get address size"),
         };
 
+        let bleach = match args.next() {
+            Some(arg) => arg,
+            None => String::from("0"),
+        };
+
         Ok(Config {
             number_of_hashtables,
             address_size,
+            bleach,
         })
     }
 }
