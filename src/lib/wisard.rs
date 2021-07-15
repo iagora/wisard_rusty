@@ -1,6 +1,6 @@
 use rand::seq::SliceRandom;
 use rand::thread_rng;
-// use rayon::prelude::*;
+use rayon::prelude::*;
 use std::collections::HashMap;
 
 #[derive(Clone)]
@@ -58,7 +58,7 @@ pub struct Wisard {
 }
 
 impl Wisard {
-    pub fn new(number_of_hashtables: u16, addr_length: u64) -> Wisard {
+    pub fn new(number_of_hashtables: u16, addr_length: u64, bleach: u16) -> Wisard {
         // randomizes the mapping
         let mut rng_mapping =
             (0..addr_length as u64 * number_of_hashtables as u64).collect::<Vec<u64>>();
@@ -71,7 +71,7 @@ impl Wisard {
             mapping: rng_mapping,
             last_rank: 0,
             rank_tables: HashMap::new(),
-            bleach: 0,
+            bleach: bleach,
         }
     }
 
@@ -107,13 +107,6 @@ impl Wisard {
                 .insert(label.clone(), Discriminator::new(self.number_of_hashtables));
         }
 
-        // let flat_image = img.into_flat_samples().to_vec().samples;
-        // let samples: Vec<u8> = img
-        //     .iter()
-        //     .enumerate()
-        //     .filter(|&(i, _)| self.mapping.contains(&(i as u64)))
-        //     .map(|(_, e)| *e)
-        //     .collect();
         let samples = self.mapping.clone();
         let samples = samples
             .iter()
@@ -125,13 +118,6 @@ impl Wisard {
     }
 
     pub fn classify(&mut self, img: Vec<u8>) -> (String, f64, f64) {
-        // let flat_image = img.into_flat_samples().to_vec().samples;
-        // let samples: Vec<u8> = img // flat_image
-        //     .iter()
-        //     .enumerate()
-        //     .filter(|&(i, _)| self.mapping.contains(&(i as u64)))
-        //     .map(|(_, e)| *e)
-        //     .collect();
         let samples = self.mapping.clone();
         let samples = samples
             .iter()
@@ -140,7 +126,7 @@ impl Wisard {
         let addresses: Vec<u64> = self.ranks(samples);
         let discs = self.discs.clone();
         let mut votes: Vec<(String, (u64, u64))> = discs
-            .into_iter() // .into_par_iter()
+            .into_par_iter() //.into_iter()
             .map(|d| (d.0, d.1.classify(&addresses, self.bleach)))
             .collect();
         votes.sort_by(|a, b| (a.1).0.partial_cmp(&(b.1).0).unwrap());
@@ -163,7 +149,7 @@ mod lib_tests {
     #[test]
     fn test_lib_ranks() {
         // this test verifies that ranks is able to push address to rank_tables
-        let mut wis = Wisard::new(28, 8);
+        let mut wis = Wisard::new(28, 8, 0);
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
             107, 73, 168, 95, 63, 11, 2, 49, 130, 43, 92, 110, 13, 157, 125, 6, 93, 119, 86, 85,
@@ -177,7 +163,7 @@ mod lib_tests {
     fn test_lib_rank_table_length() {
         // this test ensures that the same addresses aren't pushed into the rank_tables
         // repeatedly
-        let mut wis = Wisard::new(28, 8);
+        let mut wis = Wisard::new(28, 8, 0);
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
             107, 73, 168, 95, 63, 11, 2, 49, 130, 43, 92, 110, 13, 157, 125, 6, 93, 119, 86, 85,
@@ -200,7 +186,7 @@ mod lib_tests {
     #[test]
     fn test_lib_rank_addresses() {
         // this test verifies that for each new piece of data, a correct rank is attributed
-        let mut wis = Wisard::new(28, 8);
+        let mut wis = Wisard::new(28, 8, 0);
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
             107, 73, 168, 95, 63, 11, 2, 49, 130, 43, 92, 110, 13, 157, 125, 6, 93, 119, 86, 85,
@@ -213,7 +199,7 @@ mod lib_tests {
     #[test]
     fn test_lib_rank_different_addresses() {
         // this test verifies that small changes in data get close addresses
-        let mut wis = Wisard::new(28, 8);
+        let mut wis = Wisard::new(28, 8, 0);
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
             107, 73, 168, 95, 63, 11, 2, 49, 130, 43, 92, 110, 13, 157, 125, 6, 93, 119, 86, 85,
