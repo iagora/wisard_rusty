@@ -1,4 +1,4 @@
-# WiSARD 🦀
+# Rusty WiSARD 🦀
 
 Rust implementation of the weightless network WiSARD
 
