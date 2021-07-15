@@ -3,7 +3,6 @@ use rand::thread_rng;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 
-#[derive(Clone)]
 pub struct Discriminator {
     number_of_hashtables: u16,
     h_rams: Vec<HashMap<u64, u16>>,
@@ -163,7 +162,7 @@ mod lib_tests {
     #[test]
     fn test_lib_ranks() {
         // this test verifies that ranks is able to push address to rank_tables
-        let mut wis = Wisard::<u8>::new(28, 8, 0);
+        let mut wis = Wisard::new(28, 8, 0);
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
             107, 73, 168, 95, 63, 11, 2, 49, 130, 43, 92, 110, 13, 157, 125, 6, 93, 119, 86, 85,
@@ -177,7 +176,7 @@ mod lib_tests {
     fn test_lib_rank_table_length() {
         // this test ensures that the same addresses aren't pushed into the rank_tables
         // repeatedly
-        let mut wis = Wisard::<u64>::new(28, 8, 0);
+        let mut wis = Wisard::new(28, 8, 0);
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
             107, 73, 168, 95, 63, 11, 2, 49, 130, 43, 92, 110, 13, 157, 125, 6, 93, 119, 86, 85,
@@ -200,7 +199,7 @@ mod lib_tests {
     #[test]
     fn test_lib_rank_addresses() {
         // this test verifies that for each new piece of data, a correct rank is attributed
-        let mut wis = Wisard::<u16>::new(28, 8, 0);
+        let mut wis = Wisard::new(28, 8, 0);
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
             107, 73, 168, 95, 63, 11, 2, 49, 130, 43, 92, 110, 13, 157, 125, 6, 93, 119, 86, 85,
@@ -213,7 +212,7 @@ mod lib_tests {
     #[test]
     fn test_lib_rank_different_addresses() {
         // this test verifies that small changes in data get close addresses
-        let mut wis = Wisard::<u8>::new(28, 8, 0);
+        let mut wis = Wisard::new(28, 8, 0);
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
             107, 73, 168, 95, 63, 11, 2, 49, 130, 43, 92, 110, 13, 157, 125, 6, 93, 119, 86, 85,
