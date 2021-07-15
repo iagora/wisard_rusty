@@ -7,14 +7,15 @@ use std::fs::File;
 use std::time::Instant;
 
 pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
-    // println!("Dataset: {}", config.dataset_name);
+    println!("WiSARD - MNIST 🦀🦀🦀");
+    println!("Number of hashtables: {}", config.number_of_hashtables);
     println!("Address size: {}", config.address_size);
 
     let mut wis = wisard::Wisard::new(
         config.number_of_hashtables.parse::<u16>()?,
         config.address_size.parse::<u64>()?,
     );
-
+    println!("\n-----------------\nTraining\n-----------------");
     let now = Instant::now();
 
     let filename = format!("data/{}-labels-idx1-ubyte.gz", "train");
@@ -30,14 +31,13 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
         images.push(image_data);
     }
 
-    println!(
-        "Parsing the dataset took: {} milliseconds",
-        now.elapsed().as_millis()
-    );
-
     let classifications: Vec<u8> = label_data.data.clone();
 
     println!("Training data has {} images", classifications.len());
+    println!(
+        "Parsing the training dataset took: {} milliseconds",
+        now.elapsed().as_millis()
+    );
 
     let now = Instant::now();
     for (image, classification) in images.into_iter().zip(classifications.into_iter()) {
@@ -45,6 +45,8 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
     }
     println!("Training took: {} seconds", now.elapsed().as_secs());
 
+    println!("\n-----------------\nTesting\n-----------------");
+    let now = Instant::now();
     let filename = format!("data/{}-labels-idx1-ubyte.gz", "t10k");
     let label_data = &mnist::MnistData::new(&(File::open(filename))?)?;
     let filename = format!("data/{}-images-idx3-ubyte.gz", "t10k");
@@ -57,10 +59,13 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
         let image_data = images_data.data[start..start + image_shape].to_vec();
         images.push(image_data);
     }
-
     let classifications: Vec<u8> = label_data.data.clone();
 
     println!("Test data has {} images", classifications.len());
+    println!(
+        "Parsing the test dataset took: {} milliseconds",
+        now.elapsed().as_millis()
+    );
     let mut hit: u64 = 0;
     let mut count: u64 = 0;
 
