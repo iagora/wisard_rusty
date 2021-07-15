@@ -1,6 +1,6 @@
 use rand::seq::SliceRandom;
 use rand::thread_rng;
-use rayon::prelude::*;
+// use rayon::prelude::*;
 use std::collections::HashMap;
 
 #[derive(Clone)]
@@ -108,11 +108,16 @@ impl Wisard {
         }
 
         // let flat_image = img.into_flat_samples().to_vec().samples;
-        let samples: Vec<u8> = img
+        // let samples: Vec<u8> = img
+        //     .iter()
+        //     .enumerate()
+        //     .filter(|&(i, _)| self.mapping.contains(&(i as u64)))
+        //     .map(|(_, e)| *e)
+        //     .collect();
+        let samples = self.mapping.clone();
+        let samples = samples
             .iter()
-            .enumerate()
-            .filter(|&(i, _)| self.mapping.contains(&(i as u64)))
-            .map(|(_, e)| *e)
+            .map(|&i| img.get(i as usize).unwrap())
             .collect();
         let addresses: Vec<u64> = self.ranks(samples);
         let disc = self.discs.get_mut(&label).unwrap();
@@ -121,16 +126,21 @@ impl Wisard {
 
     pub fn classify(&mut self, img: Vec<u8>) -> (String, f64, f64) {
         // let flat_image = img.into_flat_samples().to_vec().samples;
-        let samples: Vec<u8> = img // flat_image
+        // let samples: Vec<u8> = img // flat_image
+        //     .iter()
+        //     .enumerate()
+        //     .filter(|&(i, _)| self.mapping.contains(&(i as u64)))
+        //     .map(|(_, e)| *e)
+        //     .collect();
+        let samples = self.mapping.clone();
+        let samples = samples
             .iter()
-            .enumerate()
-            .filter(|&(i, _)| self.mapping.contains(&(i as u64)))
-            .map(|(_, e)| *e)
+            .map(|&i| img.get(i as usize).unwrap())
             .collect();
         let addresses: Vec<u64> = self.ranks(samples);
         let discs = self.discs.clone();
         let mut votes: Vec<(String, (u64, u64))> = discs
-            .into_par_iter() // .into_iter()
+            .into_iter() // .into_par_iter()
             .map(|d| (d.0, d.1.classify(&addresses, self.bleach)))
             .collect();
         votes.sort_by(|a, b| (a.1).0.partial_cmp(&(b.1).0).unwrap());

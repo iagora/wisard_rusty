@@ -21,13 +21,6 @@ path = "src/bin/front/main.rs"
 name = "worker"
 path = "src/bin/worker/main.rs"
 
-[profile.release]
-lto = "fat"
-codegen-units = 1
-
-[profile.release.build-override]
-rustflags = ["-C target-feature=native"]
-
 [dependencies]
 rand = "0.8.4"
 byteorder = "1.4.3"

@@ -7,7 +7,7 @@ use std::fs::File;
 use std::time::Instant;
 
 pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
-    println!("WiSARD - MNIST 🦀🦀🦀");
+    println!("Rusty WiSARD - MNIST 🦀🦀🦀");
     println!("Number of hashtables: {}", config.number_of_hashtables);
     println!("Address size: {}", config.address_size);
 
