@@ -11,15 +11,7 @@ path = "src/lib/lib.rs"
 
 [[bin]]
 name = "test_lib"
-path = "src/bin/test_lib/main.rs"
-
-[[bin]]
-name = "front"
-path = "src/bin/front/main.rs"
-
-[[bin]]
-name = "worker"
-path = "src/bin/worker/main.rs"
+path = "src/bin/main.rs"
 
 [dependencies]
 rand = "0.8.4"
@@ -27,11 +19,3 @@ byteorder = "1.4.3"
 ndarray = "0.15.3"
 flate2 = "1.0.20"
 rayon = "1.5.1"
-image = "0.23.14"
-serde = "1.0.126"
-rocket = "0.4.10"
-kube = "0.58.1"
-kube-runtime = "0.58.1"
-k8s-openapi = { version = "0.12.0", default-features = false, features = [
-    "v1_20",
-] }

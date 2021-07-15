@@ -63,7 +63,7 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
     }
     let classifications: Vec<u8> = label_data.data.clone();
 
-    println!("Test data has {} images", classifications.len());
+    println!("Testing data has {} images", classifications.len());
     println!(
         "Parsing the test dataset took: {} milliseconds",
         now.elapsed().as_millis()
@@ -81,10 +81,7 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
         }
         count += 1;
     }
-    println!(
-        "Classifying took: {} milliseconds",
-        now.elapsed().as_millis()
-    );
+    println!("Testing took: {} milliseconds", now.elapsed().as_millis());
 
     println!("Accuracy: {}", hit as f64 / count as f64);
 

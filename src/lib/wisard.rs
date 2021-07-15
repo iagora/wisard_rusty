@@ -33,7 +33,7 @@ impl Discriminator {
         self.times_trained += 1;
     }
 
-    pub fn classify(self, x: &Vec<u64>, bleach: u16) -> (u64, u64) {
+    pub fn classify(&self, x: &Vec<u64>, bleach: u16) -> (u64, u64) {
         let mut votes: u64 = 0;
         for i in 0..self.number_of_hashtables {
             let key = x[i as usize];
@@ -124,10 +124,10 @@ impl Wisard {
             .map(|&i| img.get(i as usize).unwrap())
             .collect();
         let addresses: Vec<u64> = self.ranks(samples);
-        let discs = self.discs.clone();
+        let discs = &self.discs;
         let mut votes: Vec<(String, (u64, u64))> = discs
-            .into_par_iter() //.into_iter()
-            .map(|d| (d.0, d.1.classify(&addresses, self.bleach)))
+            .par_iter() //.into_iter()
+            .map(|d| (d.0.to_string(), d.1.classify(&addresses, self.bleach)))
             .collect();
         votes.sort_by(|a, b| (a.1).0.partial_cmp(&(b.1).0).unwrap());
 
