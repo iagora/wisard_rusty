@@ -1,8 +1,12 @@
 use rand::seq::SliceRandom;
 use rand::thread_rng;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fs::File;
 use std::marker::PhantomData;
+use std::path::Path;
 
+#[derive(Deserialize, Serialize)]
 pub struct Discriminator {
     number_of_hashtables: u16,
     h_rams: Vec<HashMap<u64, u16>>,
@@ -46,6 +50,7 @@ impl Discriminator {
     }
 }
 
+#[derive(Deserialize, Serialize)]
 pub struct Wisard<T> {
     discs: HashMap<String, Discriminator>,
     addr_length: u64,
@@ -153,6 +158,25 @@ impl<T> Wisard<T> {
             (biggest.1 .0 as f64 - second_biggest.1 .0 as f64) / biggest.1 .0 as f64, // confidence
         )
     }
+
+    #[allow(dead_code)]
+    pub fn save(&self, path: &Path) {
+        let mut file = File::create(path).unwrap();
+        bincode::serialize_into(&mut file, &self).unwrap();
+    }
+    #[allow(dead_code)]
+    pub fn load(path: &Path) -> Self {
+        let file = File::open(path).unwrap();
+        let decoded = bincode::deserialize_from(file).unwrap();
+        decoded
+    }
+    #[allow(dead_code)]
+    pub fn erase(&mut self) {
+        self.mapping.shuffle(&mut thread_rng());
+        self.discs = HashMap::new();
+        self.last_rank = 0;
+        self.rank_tables = HashMap::new()
+    }
 }
 
 #[cfg(test)]
@@ -229,5 +253,55 @@ mod lib_tests {
         ];
         let addresses = wis.ranks(samples);
         assert_eq!(addresses, vec![0, 1, 2, 3, 4, 5, 6, 7, 9]);
+    }
+
+    #[test]
+    fn test_save_load() {
+        let mut wis = Wisard::new(28, 8, 0);
+        let samples = vec![
+            52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
+            107, 73, 168, 95, 63, 11, 2, 49, 130, 43, 92, 110, 13, 157, 125, 6, 93, 119, 86, 85,
+            103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
+            177, 161, 134, 98, 30, 190, 47,
+        ];
+        let _ = wis.ranks(samples);
+
+        wis.save(Path::new("test/weigths_u8.bin"));
+
+        let mut decoded = Wisard::<u8>::load(Path::new("test/weigths_u8.bin"));
+
+        let samples = vec![
+            52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
+            107, 73, 168, 95, 63, 11, 2, 49, 130, 43, 92, 110, 13, 157, 125, 6, 93, 119, 86, 85,
+            103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
+            177, 161, 134, 98, 30, 190, 205,
+        ];
+        let decoded_addresses = decoded.ranks(samples);
+
+        assert_eq!(vec![0, 1, 2, 3, 4, 5, 6, 7, 9], decoded_addresses);
+    }
+
+    #[test]
+    fn test_erase() {
+        let mut wis = Wisard::new(28, 8, 0);
+        let samples = vec![
+            52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
+            107, 73, 168, 95, 63, 11, 2, 49, 130, 43, 92, 110, 13, 157, 125, 6, 93, 119, 86, 85,
+            103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
+            177, 161, 134, 98, 30, 190, 47,
+        ];
+        let _ = wis.ranks(samples);
+
+        wis.erase();
+
+        let samples = vec![
+            52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
+            107, 73, 168, 95, 63, 11, 2, 49, 130, 43, 92, 110, 13, 157, 125, 6, 93, 119, 86, 85,
+            103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
+            177, 161, 134, 98, 30, 190, 205,
+        ];
+        let decoded_addresses = wis.ranks(samples);
+
+        assert_eq!(vec![0, 1, 2, 3, 4, 5, 6, 7, 8], decoded_addresses);
     }
 }
