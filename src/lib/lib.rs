@@ -1,5 +1,5 @@
-mod mnist;
-mod wisard;
+pub mod mnist;
+pub mod wisard;
 
 use std::env;
 use std::error::Error;

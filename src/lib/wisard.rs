@@ -159,18 +159,15 @@ impl<T> Wisard<T> {
         )
     }
 
-    #[allow(dead_code)]
     pub fn save(&self, path: &Path) {
         let mut file = File::create(path).unwrap();
         bincode::serialize_into(&mut file, &self).unwrap();
     }
-    #[allow(dead_code)]
     pub fn load(path: &Path) -> Self {
         let file = File::open(path).unwrap();
         let decoded = bincode::deserialize_from(file).unwrap();
         decoded
     }
-    #[allow(dead_code)]
     pub fn erase(&mut self) {
         self.mapping.shuffle(&mut thread_rng());
         self.discs = HashMap::new();
