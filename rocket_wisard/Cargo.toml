@@ -1,0 +1,15 @@
+[package]
+name = "rocket_wisard"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "rocket_wisard"
+path = "lib/lib.rs"
+
+[dependencies]
+multipart = "0.18.0"
+rocket = "0.4.10"
+dict_wisard = { path = "../dict_wisard" }
