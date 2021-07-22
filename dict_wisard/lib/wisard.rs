@@ -158,12 +158,19 @@ impl<T> Wisard<T> {
             (biggest.1 .0 as f64 - second_biggest.1 .0 as f64) / biggest.1 .0 as f64, // confidence
         )
     }
-
-    pub fn save(&self, path: &Path) {
+    pub fn save(&self) -> Vec<u8> {
+        let encoded: Vec<u8> = bincode::serialize(&self).unwrap();
+        encoded
+    }
+    pub fn load(&self, stream: &[u8]) -> Self {
+        let decoded = bincode::deserialize(stream).unwrap();
+        decoded
+    }
+    pub fn save_to_file(&self, path: &Path) {
         let mut file = File::create(path).unwrap();
         bincode::serialize_into(&mut file, &self).unwrap();
     }
-    pub fn load(path: &Path) -> Self {
+    pub fn load_from_file(path: &Path) -> Self {
         let file = File::open(path).unwrap();
         let decoded = bincode::deserialize_from(file).unwrap();
         decoded
@@ -263,9 +270,9 @@ mod lib_tests {
         ];
         let _ = wis.ranks(samples);
 
-        wis.save(Path::new("test/weigths_u8.bin"));
+        wis.save_to_file(Path::new("test/weigths_u8.bin"));
 
-        let mut decoded = Wisard::<u8>::load(Path::new("test/weigths_u8.bin"));
+        let mut decoded = Wisard::<u8>::load_from_file(Path::new("test/weigths_u8.bin"));
 
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
