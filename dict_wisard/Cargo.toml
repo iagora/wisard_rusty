@@ -9,10 +9,6 @@ edition = "2018"
 name = "dict_wisard"
 path = "lib/lib.rs"
 
-[[bin]]
-name = "test_lib"
-path = "bin/main.rs"
-
 [dependencies]
 serde = { version = "1.0.126", features = ["derive"] }
 bincode = "1.3.3"

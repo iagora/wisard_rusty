@@ -13,8 +13,8 @@ path = "src/api_test.rs"
 name = "mnist_test"
 path = "src/mnist_test.rs"
 
-# [workspace]
-# members = ["dict_wisard", "rocket_wisard"]
+[workspace]
+members = ["dict_wisard", "rocket_wisard"]
 
 [dependencies]
 rocket_wisard = { path = "rocket_wisard" }
