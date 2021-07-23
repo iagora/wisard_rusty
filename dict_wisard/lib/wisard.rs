@@ -53,7 +53,7 @@ impl Discriminator {
 #[derive(Deserialize, Serialize)]
 pub struct Wisard<T> {
     discs: HashMap<String, Discriminator>,
-    addr_length: u64,
+    addr_length: u16,
     number_of_hashtables: u16,
     mapping: Vec<u64>,
     last_rank: u64,
@@ -63,25 +63,70 @@ pub struct Wisard<T> {
 }
 
 impl<T> Wisard<T> {
-    pub fn new(number_of_hashtables: u16, addr_length: u64, bleach: u16) -> Wisard<T>
+    pub fn new<O1, O2, O3>(number_of_hashtables: O1, addr_length: O2, bleach: O3) -> Self
     where
         T: PartialOrd + Copy,
+        O1: Into<Option<u16>>,
+        O2: Into<Option<u16>>,
+        O3: Into<Option<u16>>,
     {
+        let mut number_of_hashtables_: u16 = 28;
+        match number_of_hashtables.into() {
+            Some(x) => {
+                number_of_hashtables_ = x;
+            }
+            _ => {}
+        }
+        let mut addr_length_: u16 = 28;
+        match addr_length.into() {
+            Some(x) => {
+                addr_length_ = x;
+            }
+            _ => {}
+        }
+        let mut bleach_: u16 = 0;
+        match bleach.into() {
+            Some(x) => {
+                bleach_ = x;
+            }
+            _ => {}
+        }
+        // randomizes the mapping
+        let mut rng_mapping =
+            (0..addr_length_ as u64 * number_of_hashtables_ as u64).collect::<Vec<u64>>();
+        rng_mapping.shuffle(&mut thread_rng());
+
+        Wisard::<T> {
+            discs: HashMap::new(),
+            addr_length: addr_length_,
+            number_of_hashtables: number_of_hashtables_,
+            mapping: rng_mapping,
+            last_rank: 0,
+            rank_tables: HashMap::new(),
+            bleach: bleach_,
+            phantom: PhantomData,
+        }
+    }
+
+    pub fn erase_and_change_hyperparameters(
+        &mut self,
+        number_of_hashtables: u16,
+        addr_length: u16,
+        bleach: u16,
+    ) {
+        self.erase();
         // randomizes the mapping
         let mut rng_mapping =
             (0..addr_length as u64 * number_of_hashtables as u64).collect::<Vec<u64>>();
         rng_mapping.shuffle(&mut thread_rng());
 
-        Wisard::<T> {
-            discs: HashMap::new(),
-            addr_length: addr_length,
-            number_of_hashtables: number_of_hashtables,
-            mapping: rng_mapping,
-            last_rank: 0,
-            rank_tables: HashMap::new(),
-            bleach: bleach,
-            phantom: PhantomData,
-        }
+        self.discs = HashMap::new();
+        self.addr_length = addr_length;
+        self.number_of_hashtables = number_of_hashtables;
+        self.mapping = rng_mapping;
+        self.last_rank = 0;
+        self.rank_tables = HashMap::new();
+        self.bleach = bleach;
     }
 
     fn ranks(&mut self, samples: Vec<T>) -> Vec<u64>
