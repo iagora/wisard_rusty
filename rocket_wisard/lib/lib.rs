@@ -4,23 +4,33 @@ extern crate rocket;
 extern crate dict_wisard;
 
 use rocket::State;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
-pub fn init(number_of_hashtables: u16, addr_length: u64, bleach: u16) {
-    let wis = Mutex::new(dict_wisard::wisard::Wisard::<u8>::new(
-        number_of_hashtables,
-        addr_length,
-        bleach,
-    ));
+pub fn ignite() {
+    let wis = Arc::new(Mutex::new(dict_wisard::wisard::Wisard::<u8>::new(
+        None, None, None,
+    )));
     rocket::ignite()
         .mount("/", routes![train, classify, save, load, erase])
         .manage(wis)
         .launch();
 }
 
+#[post("/new?param&<number_of_hashtables>&addr_length&<addr_length>&<bleach>")]
+pub fn new(
+    wis: State<Arc<Mutex<dict_wisard::wisard::Wisard<u8>>>>,
+    number_of_hashtables: u16,
+    addr_length: u16,
+    bleach: u16,
+) {
+    wis.lock()
+        .unwrap()
+        .erase_and_change_hyperparameters(number_of_hashtables, addr_length, bleach);
+}
+
 #[post("/train?label&<label>", format = "multipart", data = "<image>")]
 pub fn train(
-    wis: State<Mutex<dict_wisard::wisard::Wisard<u8>>>,
+    wis: State<Arc<Mutex<dict_wisard::wisard::Wisard<u8>>>>,
     label: String,
     image: FileMultipart,
 ) {
@@ -29,7 +39,7 @@ pub fn train(
 
 #[post("/classify", format = "multipart", data = "<image>")]
 pub fn classify(
-    wis: State<Mutex<dict_wisard::wisard::Wisard<u8>>>,
+    wis: State<Arc<Mutex<dict_wisard::wisard::Wisard<u8>>>>,
     image: FileMultipart,
 ) -> String {
     let (label, _, _) = wis.lock().unwrap().classify(image.file);
@@ -37,16 +47,16 @@ pub fn classify(
 }
 
 #[get("/model")]
-pub fn save(wis: State<Mutex<dict_wisard::wisard::Wisard<u8>>>) -> Vec<u8> {
+pub fn save(wis: State<Arc<Mutex<dict_wisard::wisard::Wisard<u8>>>>) -> Vec<u8> {
     let encoded: Vec<u8> = wis.lock().unwrap().save();
     encoded
 }
 #[post("/model", format = "multipart", data = "<weights>")]
-pub fn load(wis: State<Mutex<dict_wisard::wisard::Wisard<u8>>>, weights: FileMultipart) {
+pub fn load(wis: State<Arc<Mutex<dict_wisard::wisard::Wisard<u8>>>>, weights: FileMultipart) {
     wis.lock().unwrap().load(&weights.file);
 }
 #[delete("/model")]
-pub fn erase(wis: State<Mutex<dict_wisard::wisard::Wisard<u8>>>) {
+pub fn erase(wis: State<Arc<Mutex<dict_wisard::wisard::Wisard<u8>>>>) {
     wis.lock().unwrap().erase();
 }
 
