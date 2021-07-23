@@ -162,18 +162,30 @@ impl<T> Wisard<T> {
         let encoded: Vec<u8> = bincode::serialize(&self).unwrap();
         encoded
     }
-    pub fn load(&self, stream: &[u8]) -> Self {
-        let decoded = bincode::deserialize(stream).unwrap();
-        decoded
+    pub fn load(&mut self, stream: &[u8]) {
+        let decoded: Wisard<T> = bincode::deserialize(stream).unwrap();
+        self.discs = decoded.discs;
+        self.addr_length = decoded.addr_length;
+        self.number_of_hashtables = decoded.number_of_hashtables;
+        self.mapping = decoded.mapping;
+        self.last_rank = decoded.last_rank;
+        self.rank_tables = decoded.rank_tables;
+        self.bleach = decoded.bleach;
     }
-    pub fn save_to_file(&self, path: &Path) {
+    pub fn save_to_file<P: AsRef<Path>>(&self, path: P) {
         let mut file = File::create(path).unwrap();
         bincode::serialize_into(&mut file, &self).unwrap();
     }
-    pub fn load_from_file(path: &Path) -> Self {
+    pub fn load_from_file<P: AsRef<Path>>(&mut self, path: P) {
         let file = File::open(path).unwrap();
-        let decoded = bincode::deserialize_from(file).unwrap();
-        decoded
+        let decoded: Wisard<T> = bincode::deserialize_from(file).unwrap();
+        self.discs = decoded.discs;
+        self.addr_length = decoded.addr_length;
+        self.number_of_hashtables = decoded.number_of_hashtables;
+        self.mapping = decoded.mapping;
+        self.last_rank = decoded.last_rank;
+        self.rank_tables = decoded.rank_tables;
+        self.bleach = decoded.bleach;
     }
     pub fn erase(&mut self) {
         self.mapping.shuffle(&mut thread_rng());
@@ -261,6 +273,9 @@ mod lib_tests {
 
     #[test]
     fn test_save_load() {
+        use std::fs;
+        fs::create_dir_all("profiling/").unwrap();
+
         let mut wis = Wisard::new(28, 8, 0);
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
@@ -270,10 +285,10 @@ mod lib_tests {
         ];
         let _ = wis.ranks(samples);
 
-        wis.save_to_file(Path::new("test/weigths_u8.bin"));
+        wis.save_to_file("profiling/weigths_u8.bin");
 
-        let mut decoded = Wisard::<u8>::load_from_file(Path::new("test/weigths_u8.bin"));
-
+        let mut decoded = Wisard::<u8>::new(28, 8, 0);
+        decoded.load_from_file("profiling/weigths_u8.bin");
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
             107, 73, 168, 95, 63, 11, 2, 49, 130, 43, 92, 110, 13, 157, 125, 6, 93, 119, 86, 85,
@@ -282,7 +297,12 @@ mod lib_tests {
         ];
         let decoded_addresses = decoded.ranks(samples);
 
+        println!("{:?}", decoded_addresses);
+
         assert_eq!(vec![0, 1, 2, 3, 4, 5, 6, 7, 9], decoded_addresses);
+
+        fs::remove_file("profiling/weigths_u8.bin").unwrap();
+        fs::remove_dir_all("profiling/").unwrap();
     }
 
     #[test]
