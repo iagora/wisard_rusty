@@ -3,7 +3,9 @@
 extern crate rocket;
 extern crate dict_wisard;
 
+use rocket::response::Stream;
 use rocket::State;
+use std::io::Cursor;
 use std::sync::{Arc, Mutex};
 
 pub fn ignite() {
@@ -11,30 +13,31 @@ pub fn ignite() {
         None, None, None,
     )));
     rocket::ignite()
-        .mount("/", routes![train, classify, save, load, erase])
+        .mount("/", routes![train, classify, save, load, erase, new])
         .manage(wis)
         .launch();
 }
 
-#[post("/new?param&<number_of_hashtables>&addr_length&<addr_length>&<bleach>")]
+#[post("/new?<hashtables>&<addresses>&<bleach>")]
 pub fn new(
     wis: State<Arc<Mutex<dict_wisard::wisard::Wisard<u8>>>>,
-    number_of_hashtables: u16,
-    addr_length: u16,
+    hashtables: u16,
+    addresses: u16,
     bleach: u16,
 ) {
     wis.lock()
         .unwrap()
-        .erase_and_change_hyperparameters(number_of_hashtables, addr_length, bleach);
+        .erase_and_change_hyperparameters(hashtables, addresses, bleach);
 }
 
-#[post("/train?label&<label>", format = "multipart", data = "<image>")]
+#[post("/train?<label>", format = "multipart", data = "<image>")]
 pub fn train(
     wis: State<Arc<Mutex<dict_wisard::wisard::Wisard<u8>>>>,
     label: String,
     image: FileMultipart,
 ) {
-    wis.lock().unwrap().train(image.file, label);
+    let mut unlocked_wis = wis.lock().unwrap();
+    unlocked_wis.train(image.file, label);
 }
 
 #[post("/classify", format = "multipart", data = "<image>")]
@@ -47,9 +50,9 @@ pub fn classify(
 }
 
 #[get("/model")]
-pub fn save(wis: State<Arc<Mutex<dict_wisard::wisard::Wisard<u8>>>>) -> Vec<u8> {
+pub fn save(wis: State<Arc<Mutex<dict_wisard::wisard::Wisard<u8>>>>) -> Stream<Cursor<Vec<u8>>> {
     let encoded: Vec<u8> = wis.lock().unwrap().save();
-    encoded
+    Stream::from(Cursor::new(encoded))
 }
 #[post("/model", format = "multipart", data = "<weights>")]
 pub fn load(wis: State<Arc<Mutex<dict_wisard::wisard::Wisard<u8>>>>, weights: FileMultipart) {
