@@ -63,47 +63,27 @@ pub struct Wisard<T> {
 }
 
 impl<T> Wisard<T> {
-    pub fn new<O1, O2, O3>(number_of_hashtables: O1, addr_length: O2, bleach: O3) -> Self
+    pub fn new() -> Self
     where
         T: PartialOrd + Copy,
-        O1: Into<Option<u16>>,
-        O2: Into<Option<u16>>,
-        O3: Into<Option<u16>>,
     {
-        let mut number_of_hashtables_: u16 = 28;
-        match number_of_hashtables.into() {
-            Some(x) => {
-                number_of_hashtables_ = x;
-            }
-            _ => {}
-        }
-        let mut addr_length_: u16 = 28;
-        match addr_length.into() {
-            Some(x) => {
-                addr_length_ = x;
-            }
-            _ => {}
-        }
-        let mut bleach_: u16 = 0;
-        match bleach.into() {
-            Some(x) => {
-                bleach_ = x;
-            }
-            _ => {}
-        }
+        Wisard::with_params(28, 28, 0)
+    }
+
+    pub fn with_params(number_of_hashtables: u16, addr_length: u16, bleach: u16) -> Self {
         // randomizes the mapping
         let mut rng_mapping =
-            (0..addr_length_ as u64 * number_of_hashtables_ as u64).collect::<Vec<u64>>();
+            (0..addr_length as u64 * number_of_hashtables as u64).collect::<Vec<u64>>();
         rng_mapping.shuffle(&mut thread_rng());
 
         Wisard::<T> {
             discs: HashMap::new(),
-            addr_length: addr_length_,
-            number_of_hashtables: number_of_hashtables_,
+            addr_length: addr_length,
+            number_of_hashtables: number_of_hashtables,
             mapping: rng_mapping,
             last_rank: 0,
             rank_tables: HashMap::new(),
-            bleach: bleach_,
+            bleach: bleach,
             phantom: PhantomData,
         }
     }
@@ -247,7 +227,7 @@ mod lib_tests {
     #[test]
     fn test_lib_ranks() {
         // this test verifies that ranks is able to push address to rank_tables
-        let mut wis = Wisard::new(28, 8, 0);
+        let mut wis = Wisard::new();
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
             107, 73, 168, 95, 63, 11, 2, 49, 130, 43, 92, 110, 13, 157, 125, 6, 93, 119, 86, 85,
@@ -261,7 +241,7 @@ mod lib_tests {
     fn test_lib_rank_table_length() {
         // this test ensures that the same addresses aren't pushed into the rank_tables
         // repeatedly
-        let mut wis = Wisard::new(28, 8, 0);
+        let mut wis = Wisard::new();
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
             107, 73, 168, 95, 63, 11, 2, 49, 130, 43, 92, 110, 13, 157, 125, 6, 93, 119, 86, 85,
@@ -284,7 +264,7 @@ mod lib_tests {
     #[test]
     fn test_lib_rank_addresses() {
         // this test verifies that for each new piece of data, a correct rank is attributed
-        let mut wis = Wisard::new(28, 8, 0);
+        let mut wis = Wisard::new();
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
             107, 73, 168, 95, 63, 11, 2, 49, 130, 43, 92, 110, 13, 157, 125, 6, 93, 119, 86, 85,
@@ -297,7 +277,7 @@ mod lib_tests {
     #[test]
     fn test_lib_rank_different_addresses() {
         // this test verifies that small changes in data get close addresses
-        let mut wis = Wisard::new(28, 8, 0);
+        let mut wis = Wisard::new();
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
             107, 73, 168, 95, 63, 11, 2, 49, 130, 43, 92, 110, 13, 157, 125, 6, 93, 119, 86, 85,
@@ -321,7 +301,7 @@ mod lib_tests {
         use std::fs;
         fs::create_dir_all("profiling/").unwrap();
 
-        let mut wis = Wisard::new(28, 8, 0);
+        let mut wis = Wisard::new();
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
             107, 73, 168, 95, 63, 11, 2, 49, 130, 43, 92, 110, 13, 157, 125, 6, 93, 119, 86, 85,
@@ -332,7 +312,7 @@ mod lib_tests {
 
         wis.save_to_file("profiling/weigths_u8.bin");
 
-        let mut decoded = Wisard::<u8>::new(28, 8, 0);
+        let mut decoded = Wisard::new();
         decoded.load_from_file("profiling/weigths_u8.bin");
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
@@ -352,7 +332,7 @@ mod lib_tests {
 
     #[test]
     fn test_erase() {
-        let mut wis = Wisard::new(28, 8, 0);
+        let mut wis = Wisard::new();
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
             107, 73, 168, 95, 63, 11, 2, 49, 130, 43, 92, 110, 13, 157, 125, 6, 93, 119, 86, 85,
