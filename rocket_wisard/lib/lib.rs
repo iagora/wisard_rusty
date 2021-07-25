@@ -9,9 +9,7 @@ use std::io::Cursor;
 use std::sync::{Arc, Mutex};
 
 pub fn ignite() {
-    let wis = Arc::new(Mutex::new(dict_wisard::wisard::Wisard::<u8>::new(
-        None, None, None,
-    )));
+    let wis = Arc::new(Mutex::new(dict_wisard::wisard::Wisard::<u8>::new()));
     rocket::ignite()
         .mount("/", routes![train, classify, save, load, erase, new])
         .manage(wis)

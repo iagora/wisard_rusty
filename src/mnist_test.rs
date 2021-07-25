@@ -24,7 +24,7 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
     println!("Address size: {}", config.address_size);
     println!("Bleaching: {}", config.bleach);
 
-    let mut wis = wisard::Wisard::new(
+    let mut wis = wisard::Wisard::with_params(
         config.number_of_hashtables.parse::<u16>()?,
         config.address_size.parse::<u16>()?,
         config.bleach.parse::<u16>()?,
