@@ -28,6 +28,23 @@ pub fn new(
         .erase_and_change_hyperparameters(hashtables, addresses, bleach);
 }
 
+#[post(
+    "/with_model?<hashtables>&<addresses>&<bleach>",
+    format = "multipart",
+    data = "<weights>"
+)]
+pub fn with_model(
+    wis: State<Arc<Mutex<dict_wisard::wisard::Wisard<u8>>>>,
+    hashtables: u16,
+    addresses: u16,
+    bleach: u16,
+    weights: FileMultipart,
+) {
+    let mut unlocked_wis = wis.lock().unwrap();
+    unlocked_wis.erase_and_change_hyperparameters(hashtables, addresses, bleach);
+    unlocked_wis.load(&weights.file);
+}
+
 #[post("/train?<label>", format = "multipart", data = "<image>")]
 pub fn train(
     wis: State<Arc<Mutex<dict_wisard::wisard::Wisard<u8>>>>,

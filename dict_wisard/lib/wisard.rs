@@ -272,7 +272,7 @@ mod lib_tests {
             177, 161, 134, 98, 30, 190, 47,
         ];
         let addresses = wis.ranks(samples);
-        assert_eq!(addresses, vec![0, 1, 2, 3, 4, 5, 6, 7, 8]);
+        assert_eq!(addresses, vec![0, 1, 2]);
     }
     #[test]
     fn test_lib_rank_different_addresses() {
@@ -285,7 +285,7 @@ mod lib_tests {
             177, 161, 134, 98, 30, 190, 47,
         ];
         let addresses = wis.ranks(samples);
-        assert_eq!(addresses, vec![0, 1, 2, 3, 4, 5, 6, 7, 8]);
+        assert_eq!(addresses, vec![0, 1, 2]);
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
             107, 73, 168, 95, 63, 11, 2, 49, 130, 43, 92, 110, 13, 157, 125, 6, 93, 119, 86, 85,
@@ -293,13 +293,13 @@ mod lib_tests {
             177, 161, 134, 98, 30, 190, 205,
         ];
         let addresses = wis.ranks(samples);
-        assert_eq!(addresses, vec![0, 1, 2, 3, 4, 5, 6, 7, 9]);
+        assert_eq!(addresses, vec![0, 1, 3]);
     }
 
     #[test]
     fn test_save_load() {
         use std::fs;
-        fs::create_dir_all("profiling/").unwrap();
+        fs::create_dir_all("weights/").unwrap();
 
         let mut wis = Wisard::new();
         let samples = vec![
@@ -310,10 +310,10 @@ mod lib_tests {
         ];
         let _ = wis.ranks(samples);
 
-        wis.save_to_file("profiling/weigths_u8.bin");
+        wis.save_to_file("weights/weigths_u8.bin");
 
         let mut decoded = Wisard::new();
-        decoded.load_from_file("profiling/weigths_u8.bin");
+        decoded.load_from_file("weights/weigths_u8.bin");
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
             107, 73, 168, 95, 63, 11, 2, 49, 130, 43, 92, 110, 13, 157, 125, 6, 93, 119, 86, 85,
@@ -324,10 +324,10 @@ mod lib_tests {
 
         println!("{:?}", decoded_addresses);
 
-        assert_eq!(vec![0, 1, 2, 3, 4, 5, 6, 7, 9], decoded_addresses);
+        fs::remove_file("weights/weigths_u8.bin").unwrap();
+        fs::remove_dir_all("weights/").unwrap();
 
-        fs::remove_file("profiling/weigths_u8.bin").unwrap();
-        fs::remove_dir_all("profiling/").unwrap();
+        assert_eq!(vec![0, 1, 3], decoded_addresses);
     }
 
     #[test]
@@ -351,6 +351,6 @@ mod lib_tests {
         ];
         let decoded_addresses = wis.ranks(samples);
 
-        assert_eq!(vec![0, 1, 2, 3, 4, 5, 6, 7, 8], decoded_addresses);
+        assert_eq!(vec![0, 1, 2], decoded_addresses);
     }
 }
