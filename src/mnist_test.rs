@@ -32,8 +32,10 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
     println!("\n-----------------\nTraining\n-----------------");
     let now = Instant::now();
 
-    let label_data = &mnist::MnistData::new(&(File::open("data/train-labels-idx1-ubyte.gz"))?)?;
-    let images_data = &mnist::MnistData::new(&(File::open("data/train-images-idx3-ubyte.gz"))?)?;
+    let label_data =
+        &mnist::MnistData::new(&(File::open("data/mnist/train-labels-idx1-ubyte.gz"))?)?;
+    let images_data =
+        &mnist::MnistData::new(&(File::open("data/mnist/train-images-idx3-ubyte.gz"))?)?;
     let mut images: Vec<Vec<u8>> = Vec::new();
     let image_shape = (images_data.sizes[1] * images_data.sizes[2]) as usize;
 
@@ -59,8 +61,10 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
 
     println!("\n-----------------\nTesting\n-----------------");
     let now = Instant::now();
-    let label_data = &mnist::MnistData::new(&(File::open("data/t10k-labels-idx1-ubyte.gz"))?)?;
-    let images_data = &mnist::MnistData::new(&(File::open("data/t10k-images-idx3-ubyte.gz"))?)?;
+    let label_data =
+        &mnist::MnistData::new(&(File::open("data/mnist/t10k-labels-idx1-ubyte.gz"))?)?;
+    let images_data =
+        &mnist::MnistData::new(&(File::open("data/mnist/t10k-images-idx3-ubyte.gz"))?)?;
     let mut images: Vec<Vec<u8>> = Vec::new();
     let image_shape = (images_data.sizes[1] * images_data.sizes[2]) as usize;
 
