@@ -2,3 +2,5 @@
 /data
 /.cargo
 /test
+/profiling
+/weights
