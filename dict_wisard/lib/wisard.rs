@@ -6,7 +6,7 @@ use std::fs::File;
 use std::marker::PhantomData;
 use std::path::Path;
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct Discriminator {
     number_of_hashtables: u16,
     h_rams: Vec<HashMap<u64, u16>>,
@@ -50,7 +50,7 @@ impl Discriminator {
     }
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct Wisard<T> {
     discs: HashMap<String, Discriminator>,
     addr_length: u16,
