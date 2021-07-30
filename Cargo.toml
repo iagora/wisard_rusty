@@ -7,11 +7,11 @@ edition = "2018"
 
 [[bin]]
 name = "rocket_wisard_test"
-path = "src/api_test.rs"
+path = "src/rocket_test.rs"
 
 [[bin]]
-name = "mnist_test"
-path = "src/mnist_test.rs"
+name = "dict_wisard_test"
+path = "src/dict_test.rs"
 
 [[bin]]
 name = "actix_wisard_test"

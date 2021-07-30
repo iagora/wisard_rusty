@@ -92,7 +92,7 @@ async fn with_model(
     );
     unlocked_wis.load(&v);
 
-    Ok(HttpResponse::Created().into())
+    Ok(HttpResponse::Ok().into())
 }
 
 async fn train(
