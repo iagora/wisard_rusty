@@ -2,7 +2,7 @@ extern crate dict_wisard;
 
 use actix_files::NamedFile;
 use actix_multipart::Multipart;
-use actix_web::{middleware, web, App, Error, HttpResponse, HttpServer};
+use actix_web::{error, middleware, web, App, Error, HttpResponse, HttpServer};
 use async_std::prelude::*;
 use env_logger::Env;
 use futures::{StreamExt, TryStreamExt};
@@ -17,13 +17,12 @@ pub async fn run() -> std::io::Result<()> {
 
     HttpServer::new(move || {
         App::new()
+            .app_data(wis.clone())
             .wrap(middleware::Logger::default())
             .wrap(middleware::Logger::new("%a %{User-Agent}i"))
-            .wrap(middleware::Compress::default())
-            .app_data(wis.clone())
             .service(web::resource("/new").route(web::post().to(new)))
             .service(web::resource("/with_model").route(web::post().to(with_model)))
-            .service(web::resource("/train?<label>").route(web::post().to(train)))
+            .service(web::resource("/train?{label}>").route(web::post().to(train)))
             .service(web::resource("/classify").route(web::post().to(classify)))
             .service(
                 web::resource("/model")
@@ -41,12 +40,20 @@ async fn new(
     wis: web::Data<Mutex<dict_wisard::wisard::Wisard<u8>>>,
     web::Query(model_info): web::Query<ModelRequestType>,
 ) -> Result<HttpResponse, Error> {
-    wis.lock().unwrap().erase_and_change_hyperparameters(
+    let mut unlocked_wis = match wis.lock() {
+        Ok(unlocked_wis) => unlocked_wis,
+        Err(error) => {
+            return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
+                format!("Failed to get lock on cache: {}", error),
+            )))
+        }
+    };
+    unlocked_wis.erase_and_change_hyperparameters(
         model_info.hashtables,
         model_info.addresses,
         model_info.bleach,
     );
-    Ok(HttpResponse::Created().into())
+    Ok(HttpResponse::Ok().into())
 }
 
 async fn with_model(
@@ -70,7 +77,14 @@ async fn with_model(
             v.write_all(&data).await?;
         }
     }
-    let mut unlocked_wis = wis.lock().unwrap();
+    let mut unlocked_wis = match wis.lock() {
+        Ok(unlocked_wis) => unlocked_wis,
+        Err(error) => {
+            return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
+                format!("Failed to get lock on cache: {}", error),
+            )))
+        }
+    };
     unlocked_wis.erase_and_change_hyperparameters(
         model_info.hashtables,
         model_info.addresses,
@@ -95,7 +109,14 @@ async fn train(
             v.write_all(&data).await?;
         }
     }
-    let mut unlocked_wis = wis.lock().unwrap();
+    let mut unlocked_wis = match wis.lock() {
+        Ok(unlocked_wis) => unlocked_wis,
+        Err(error) => {
+            return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
+                format!("Failed to get lock on cache: {}", error),
+            )))
+        }
+    };
     unlocked_wis.train(v, label);
 
     Ok(HttpResponse::Ok().into())
@@ -114,7 +135,15 @@ async fn classify(
             v.write_all(&data).await?;
         }
     }
-    let (label, _, _) = wis.lock().unwrap().classify(v);
+    let mut unlocked_wis = match wis.lock() {
+        Ok(unlocked_wis) => unlocked_wis,
+        Err(error) => {
+            return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
+                format!("Failed to get lock on cache: {}", error),
+            )))
+        }
+    };
+    let (label, _, _) = unlocked_wis.classify(v);
     Ok(HttpResponse::Ok()
         .content_type("text/plain")
         .body(format!("{}", label)))
@@ -141,8 +170,15 @@ async fn load(
             v.write_all(&data).await?;
         }
     }
-
-    wis.lock().unwrap().load(&v);
+    let mut unlocked_wis = match wis.lock() {
+        Ok(unlocked_wis) => unlocked_wis,
+        Err(error) => {
+            return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
+                format!("Failed to get lock on cache: {}", error),
+            )))
+        }
+    };
+    unlocked_wis.load(&v);
 
     Ok(HttpResponse::Ok().into())
 }
@@ -150,7 +186,15 @@ async fn load(
 async fn erase(
     wis: web::Data<Mutex<dict_wisard::wisard::Wisard<u8>>>,
 ) -> Result<HttpResponse, Error> {
-    wis.lock().unwrap().erase();
+    let mut unlocked_wis = match wis.lock() {
+        Ok(unlocked_wis) => unlocked_wis,
+        Err(error) => {
+            return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
+                format!("Failed to get lock on cache: {}", error),
+            )))
+        }
+    };
+    unlocked_wis.erase();
 
     Ok(HttpResponse::Ok().into())
 }
