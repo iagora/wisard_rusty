@@ -6,16 +6,21 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [[bin]]
-name = "rusty_wisard"
+name = "rocket_wisard_test"
 path = "src/api_test.rs"
 
 [[bin]]
 name = "mnist_test"
 path = "src/mnist_test.rs"
 
+[[bin]]
+name = "actix_wisard_test"
+path = "src/actix_test.rs"
+
 [workspace]
-members = ["dict_wisard", "rocket_wisard"]
+members = ["dict_wisard", "rocket_wisard", "actix_wisard"]
 
 [dependencies]
+actix_wisard = { path = "actix_wisard" }
 rocket_wisard = { path = "rocket_wisard" }
 dict_wisard = { path = "dict_wisard" }
