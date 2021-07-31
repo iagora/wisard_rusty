@@ -1,10 +1,23 @@
-pub mod mnist;
-pub mod wisard;
-
+use dataloaders::mnist;
 use std::env;
 use std::error::Error;
 use std::fs::File;
+use std::process;
 use std::time::Instant;
+use wisard::dict_wisard;
+
+fn main() {
+    let config = Config::new(env::args()).unwrap_or_else(|err| {
+        eprintln!("Problem parsing arguments: {}", err);
+        process::exit(1);
+    });
+
+    if let Err(e) = run(config) {
+        eprintln!("Application error: {}", e);
+
+        process::exit(1);
+    }
+}
 
 pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
     println!("Rusty WiSARD - MNIST 🦀🦀🦀");
@@ -12,18 +25,18 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
     println!("Address size: {}", config.address_size);
     println!("Bleaching: {}", config.bleach);
 
-    let mut wis = wisard::Wisard::new(
+    let mut wis = dict_wisard::Wisard::with_params(
         config.number_of_hashtables.parse::<u16>()?,
-        config.address_size.parse::<u64>()?,
+        config.address_size.parse::<u16>()?,
         config.bleach.parse::<u16>()?,
     );
     println!("\n-----------------\nTraining\n-----------------");
     let now = Instant::now();
 
-    let filename = format!("data/{}-labels-idx1-ubyte.gz", "train");
-    let label_data = &mnist::MnistData::new(&(File::open(filename))?)?;
-    let filename = format!("data/{}-images-idx3-ubyte.gz", "train");
-    let images_data = &mnist::MnistData::new(&(File::open(filename))?)?;
+    let label_data =
+        &mnist::MnistData::new(&(File::open("data/mnist/train-labels-idx1-ubyte.gz"))?)?;
+    let images_data =
+        &mnist::MnistData::new(&(File::open("data/mnist/train-images-idx3-ubyte.gz"))?)?;
     let mut images: Vec<Vec<u8>> = Vec::new();
     let image_shape = (images_data.sizes[1] * images_data.sizes[2]) as usize;
 
@@ -49,10 +62,10 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
 
     println!("\n-----------------\nTesting\n-----------------");
     let now = Instant::now();
-    let filename = format!("data/{}-labels-idx1-ubyte.gz", "t10k");
-    let label_data = &mnist::MnistData::new(&(File::open(filename))?)?;
-    let filename = format!("data/{}-images-idx3-ubyte.gz", "t10k");
-    let images_data = &mnist::MnistData::new(&(File::open(filename))?)?;
+    let label_data =
+        &mnist::MnistData::new(&(File::open("data/mnist/t10k-labels-idx1-ubyte.gz"))?)?;
+    let images_data =
+        &mnist::MnistData::new(&(File::open("data/mnist/t10k-images-idx3-ubyte.gz"))?)?;
     let mut images: Vec<Vec<u8>> = Vec::new();
     let image_shape = (images_data.sizes[1] * images_data.sizes[2]) as usize;
 

@@ -6,7 +6,7 @@ use std::fs::File;
 use std::marker::PhantomData;
 use std::path::Path;
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct Discriminator {
     number_of_hashtables: u16,
     h_rams: Vec<HashMap<u64, u16>>,
@@ -50,10 +50,10 @@ impl Discriminator {
     }
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct Wisard<T> {
     discs: HashMap<String, Discriminator>,
-    addr_length: u64,
+    addr_length: u16,
     number_of_hashtables: u16,
     mapping: Vec<u64>,
     last_rank: u64,
@@ -63,10 +63,14 @@ pub struct Wisard<T> {
 }
 
 impl<T> Wisard<T> {
-    pub fn new(number_of_hashtables: u16, addr_length: u64, bleach: u16) -> Wisard<T>
+    pub fn new() -> Self
     where
-        T: PartialOrd + Copy,
+        T: PartialOrd + Copy + Send + Sync,
     {
+        Wisard::with_params(28, 28, 0)
+    }
+
+    pub fn with_params(number_of_hashtables: u16, addr_length: u16, bleach: u16) -> Self {
         // randomizes the mapping
         let mut rng_mapping =
             (0..addr_length as u64 * number_of_hashtables as u64).collect::<Vec<u64>>();
@@ -84,9 +88,30 @@ impl<T> Wisard<T> {
         }
     }
 
-    fn ranks(&mut self, samples: Vec<T>) -> Vec<u64>
+    pub fn erase_and_change_hyperparameters(
+        &mut self,
+        number_of_hashtables: u16,
+        addr_length: u16,
+        bleach: u16,
+    ) {
+        self.erase();
+        // randomizes the mapping
+        let mut rng_mapping =
+            (0..addr_length as u64 * number_of_hashtables as u64).collect::<Vec<u64>>();
+        rng_mapping.shuffle(&mut thread_rng());
+
+        self.discs = HashMap::new();
+        self.addr_length = addr_length;
+        self.number_of_hashtables = number_of_hashtables;
+        self.mapping = rng_mapping;
+        self.last_rank = 0;
+        self.rank_tables = HashMap::new();
+        self.bleach = bleach;
+    }
+
+    fn ranks_t(&mut self, samples: Vec<T>) -> Vec<u64>
     where
-        T: PartialOrd + Copy,
+        T: PartialOrd + Copy + Send + Sync,
     {
         let mut vetor = Vec::with_capacity(self.addr_length as usize);
         let mut addresses = Vec::new();
@@ -113,9 +138,40 @@ impl<T> Wisard<T> {
         addresses
     }
 
+    fn ranks_c(&self, samples: Vec<T>) -> Vec<u64>
+    where
+        T: PartialOrd + Copy + Send + Sync,
+    {
+        let mut vetor = Vec::with_capacity(self.addr_length as usize);
+        let mut addresses = Vec::new();
+        for i in (0..samples.len()).step_by(self.addr_length as usize) {
+            if i + self.addr_length as usize <= samples.len() {
+                vetor.append(&mut samples[i..i + self.addr_length as usize].to_vec());
+            } else {
+                vetor.append(&mut samples[i..samples.len()].to_vec());
+            }
+            let mut tuples: Vec<(u64, &T)> = vetor
+                .iter()
+                .enumerate()
+                .map(|x| (x.0 as u64, x.1))
+                .collect();
+            tuples.sort_by(|a, b| a.1.partial_cmp(b.1).unwrap()); // TODO: treat the Option
+            let address: Vec<u64> = tuples.iter().map(|a| a.0).collect();
+            if !self.rank_tables.contains_key(&address) {
+                // self.rank_tables.insert(address.clone(), self.last_rank);
+                let tmp_rank = 1 + self.last_rank;
+                addresses.push(tmp_rank);
+            } else {
+                addresses.push(*self.rank_tables.get(&address).unwrap()); // TODO: treat the Option
+            }
+            vetor.clear();
+        }
+        addresses
+    }
+
     pub fn train(&mut self, data: Vec<T>, label: String)
     where
-        T: PartialOrd + Copy,
+        T: PartialOrd + Copy + Send + Sync,
     {
         if !self.discs.contains_key(&label) {
             self.discs
@@ -127,21 +183,21 @@ impl<T> Wisard<T> {
             .iter()
             .map(|&i| *data.get(i as usize).unwrap())
             .collect();
-        let addresses: Vec<u64> = self.ranks(samples);
+        let addresses: Vec<u64> = self.ranks_t(samples);
         let disc = self.discs.get_mut(&label).unwrap();
         disc.train(addresses);
     }
 
-    pub fn classify(&mut self, data: Vec<T>) -> (String, f64, f64)
+    pub fn classify(&self, data: Vec<T>) -> (String, f64, f64)
     where
-        T: PartialOrd + Copy,
+        T: PartialOrd + Copy + Send + Sync,
     {
         let samples = self.mapping.clone();
         let samples = samples
             .iter()
             .map(|&i| *data.get(i as usize).unwrap())
             .collect();
-        let addresses: Vec<u64> = self.ranks(samples);
+        let addresses: Vec<u64> = self.ranks_c(samples);
         let discs = &self.discs;
         let mut votes: Vec<(String, (u64, u64))> = discs
             .iter()
@@ -158,15 +214,34 @@ impl<T> Wisard<T> {
             (biggest.1 .0 as f64 - second_biggest.1 .0 as f64) / biggest.1 .0 as f64, // confidence
         )
     }
-
-    pub fn save(&self, path: &Path) {
+    pub fn save(&self) -> Vec<u8> {
+        let encoded: Vec<u8> = bincode::serialize(&self).unwrap();
+        encoded
+    }
+    pub fn load(&mut self, stream: &[u8]) {
+        let decoded: Wisard<T> = bincode::deserialize(stream).unwrap();
+        self.discs = decoded.discs;
+        self.addr_length = decoded.addr_length;
+        self.number_of_hashtables = decoded.number_of_hashtables;
+        self.mapping = decoded.mapping;
+        self.last_rank = decoded.last_rank;
+        self.rank_tables = decoded.rank_tables;
+        self.bleach = decoded.bleach;
+    }
+    pub fn save_to_file<P: AsRef<Path>>(&self, path: P) {
         let mut file = File::create(path).unwrap();
         bincode::serialize_into(&mut file, &self).unwrap();
     }
-    pub fn load(path: &Path) -> Self {
+    pub fn load_from_file<P: AsRef<Path>>(&mut self, path: P) {
         let file = File::open(path).unwrap();
-        let decoded = bincode::deserialize_from(file).unwrap();
-        decoded
+        let decoded: Wisard<T> = bincode::deserialize_from(file).unwrap();
+        self.discs = decoded.discs;
+        self.addr_length = decoded.addr_length;
+        self.number_of_hashtables = decoded.number_of_hashtables;
+        self.mapping = decoded.mapping;
+        self.last_rank = decoded.last_rank;
+        self.rank_tables = decoded.rank_tables;
+        self.bleach = decoded.bleach;
     }
     pub fn erase(&mut self) {
         self.mapping.shuffle(&mut thread_rng());
@@ -183,28 +258,28 @@ mod lib_tests {
     #[test]
     fn test_lib_ranks() {
         // this test verifies that ranks is able to push address to rank_tables
-        let mut wis = Wisard::new(28, 8, 0);
+        let mut wis = Wisard::new();
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
             107, 73, 168, 95, 63, 11, 2, 49, 130, 43, 92, 110, 13, 157, 125, 6, 93, 119, 86, 85,
             103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
             177, 161, 134, 98, 30, 190, 47,
         ];
-        wis.ranks(samples);
+        wis.ranks_t(samples);
         assert!(!wis.rank_tables.is_empty());
     }
     #[test]
     fn test_lib_rank_table_length() {
         // this test ensures that the same addresses aren't pushed into the rank_tables
         // repeatedly
-        let mut wis = Wisard::new(28, 8, 0);
+        let mut wis = Wisard::new();
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
             107, 73, 168, 95, 63, 11, 2, 49, 130, 43, 92, 110, 13, 157, 125, 6, 93, 119, 86, 85,
             103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
             177, 161, 134, 98, 30, 190, 47,
         ];
-        wis.ranks(samples);
+        wis.ranks_t(samples);
         let length1 = wis.rank_tables.len();
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
@@ -212,7 +287,7 @@ mod lib_tests {
             103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
             177, 161, 134, 98, 30, 190, 47,
         ];
-        wis.ranks(samples);
+        wis.ranks_t(samples);
         let length2 = wis.rank_tables.len();
         assert_eq!(length1, length2);
     }
@@ -220,74 +295,82 @@ mod lib_tests {
     #[test]
     fn test_lib_rank_addresses() {
         // this test verifies that for each new piece of data, a correct rank is attributed
-        let mut wis = Wisard::new(28, 8, 0);
+        let mut wis = Wisard::new();
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
             107, 73, 168, 95, 63, 11, 2, 49, 130, 43, 92, 110, 13, 157, 125, 6, 93, 119, 86, 85,
             103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
             177, 161, 134, 98, 30, 190, 47,
         ];
-        let addresses = wis.ranks(samples);
-        assert_eq!(addresses, vec![0, 1, 2, 3, 4, 5, 6, 7, 8]);
+        let addresses = wis.ranks_t(samples);
+        assert_eq!(addresses, vec![0, 1, 2]);
     }
     #[test]
     fn test_lib_rank_different_addresses() {
         // this test verifies that small changes in data get close addresses
-        let mut wis = Wisard::new(28, 8, 0);
+        let mut wis = Wisard::new();
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
             107, 73, 168, 95, 63, 11, 2, 49, 130, 43, 92, 110, 13, 157, 125, 6, 93, 119, 86, 85,
             103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
             177, 161, 134, 98, 30, 190, 47,
         ];
-        let addresses = wis.ranks(samples);
-        assert_eq!(addresses, vec![0, 1, 2, 3, 4, 5, 6, 7, 8]);
+        let addresses = wis.ranks_t(samples);
+        assert_eq!(addresses, vec![0, 1, 2]);
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
             107, 73, 168, 95, 63, 11, 2, 49, 130, 43, 92, 110, 13, 157, 125, 6, 93, 119, 86, 85,
             103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
             177, 161, 134, 98, 30, 190, 205,
         ];
-        let addresses = wis.ranks(samples);
-        assert_eq!(addresses, vec![0, 1, 2, 3, 4, 5, 6, 7, 9]);
+        let addresses = wis.ranks_t(samples);
+        assert_eq!(addresses, vec![0, 1, 3]);
     }
 
     #[test]
     fn test_save_load() {
-        let mut wis = Wisard::new(28, 8, 0);
+        use std::fs;
+        fs::create_dir_all("weights/").unwrap();
+
+        let mut wis = Wisard::new();
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
             107, 73, 168, 95, 63, 11, 2, 49, 130, 43, 92, 110, 13, 157, 125, 6, 93, 119, 86, 85,
             103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
             177, 161, 134, 98, 30, 190, 47,
         ];
-        let _ = wis.ranks(samples);
+        let _ = wis.ranks_t(samples);
 
-        wis.save(Path::new("test/weigths_u8.bin"));
+        wis.save_to_file("weights/weigths_u8.bin");
 
-        let mut decoded = Wisard::<u8>::load(Path::new("test/weigths_u8.bin"));
-
+        let mut decoded = Wisard::new();
+        decoded.load_from_file("weights/weigths_u8.bin");
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
             107, 73, 168, 95, 63, 11, 2, 49, 130, 43, 92, 110, 13, 157, 125, 6, 93, 119, 86, 85,
             103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
             177, 161, 134, 98, 30, 190, 205,
         ];
-        let decoded_addresses = decoded.ranks(samples);
+        let decoded_addresses = decoded.ranks_t(samples);
 
-        assert_eq!(vec![0, 1, 2, 3, 4, 5, 6, 7, 9], decoded_addresses);
+        println!("{:?}", decoded_addresses);
+
+        fs::remove_file("weights/weigths_u8.bin").unwrap();
+        fs::remove_dir_all("weights/").unwrap();
+
+        assert_eq!(vec![0, 1, 3], decoded_addresses);
     }
 
     #[test]
     fn test_erase() {
-        let mut wis = Wisard::new(28, 8, 0);
+        let mut wis = Wisard::new();
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
             107, 73, 168, 95, 63, 11, 2, 49, 130, 43, 92, 110, 13, 157, 125, 6, 93, 119, 86, 85,
             103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
             177, 161, 134, 98, 30, 190, 47,
         ];
-        let _ = wis.ranks(samples);
+        let _ = wis.ranks_t(samples);
 
         wis.erase();
 
@@ -297,8 +380,8 @@ mod lib_tests {
             103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
             177, 161, 134, 98, 30, 190, 205,
         ];
-        let decoded_addresses = wis.ranks(samples);
+        let decoded_addresses = wis.ranks_t(samples);
 
-        assert_eq!(vec![0, 1, 2, 3, 4, 5, 6, 7, 8], decoded_addresses);
+        assert_eq!(vec![0, 1, 2], decoded_addresses);
     }
 }
