@@ -1,5 +1,5 @@
 extern crate actix_wisard;
-extern crate dict_wisard;
+extern crate wisard;
 
 use std::process;
 

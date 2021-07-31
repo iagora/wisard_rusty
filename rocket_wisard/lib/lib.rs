@@ -1,7 +1,7 @@
 #![feature(proc_macro_hygiene, decl_macro)]
 #[macro_use]
 extern crate rocket;
-extern crate dict_wisard;
+extern crate wisard;
 
 use rocket::response::Stream;
 use rocket::State;
@@ -9,7 +9,7 @@ use std::io::Cursor;
 use std::sync::{Arc, Mutex};
 
 pub fn ignite() {
-    let wis = Arc::new(Mutex::new(dict_wisard::wisard::Wisard::<u8>::new()));
+    let wis = Arc::new(Mutex::new(wisard::dict_wisard::Wisard::<u8>::new()));
     rocket::ignite()
         .mount(
             "/",
@@ -21,7 +21,7 @@ pub fn ignite() {
 
 #[post("/new?<hashtables>&<addresses>&<bleach>")]
 pub fn new(
-    wis: State<Arc<Mutex<dict_wisard::wisard::Wisard<u8>>>>,
+    wis: State<Arc<Mutex<wisard::dict_wisard::Wisard<u8>>>>,
     hashtables: u16,
     addresses: u16,
     bleach: u16,
@@ -32,7 +32,7 @@ pub fn new(
 }
 
 #[post("/with_model", format = "multipart", data = "<model>")]
-pub fn with_model(wis: State<Arc<Mutex<dict_wisard::wisard::Wisard<u8>>>>, model: ModelMultipart) {
+pub fn with_model(wis: State<Arc<Mutex<wisard::dict_wisard::Wisard<u8>>>>, model: ModelMultipart) {
     let mut unlocked_wis = wis.lock().unwrap();
     unlocked_wis.erase_and_change_hyperparameters(
         model.number_of_hashtables,
@@ -43,14 +43,14 @@ pub fn with_model(wis: State<Arc<Mutex<dict_wisard::wisard::Wisard<u8>>>>, model
 }
 
 #[post("/train", format = "multipart", data = "<image>")]
-pub fn train(wis: State<Arc<Mutex<dict_wisard::wisard::Wisard<u8>>>>, image: TrainImageMultipart) {
+pub fn train(wis: State<Arc<Mutex<wisard::dict_wisard::Wisard<u8>>>>, image: TrainImageMultipart) {
     let mut unlocked_wis = wis.lock().unwrap();
     unlocked_wis.train(image.image, image.label);
 }
 
 #[post("/classify", format = "multipart", data = "<image>")]
 pub fn classify(
-    wis: State<Arc<Mutex<dict_wisard::wisard::Wisard<u8>>>>,
+    wis: State<Arc<Mutex<wisard::dict_wisard::Wisard<u8>>>>,
     image: ClassifyImageMultipart,
 ) -> String {
     let (label, _, _) = wis.lock().unwrap().classify(image.image);
@@ -58,16 +58,16 @@ pub fn classify(
 }
 
 #[get("/model")]
-pub fn save(wis: State<Arc<Mutex<dict_wisard::wisard::Wisard<u8>>>>) -> Stream<Cursor<Vec<u8>>> {
+pub fn save(wis: State<Arc<Mutex<wisard::dict_wisard::Wisard<u8>>>>) -> Stream<Cursor<Vec<u8>>> {
     let encoded: Vec<u8> = wis.lock().unwrap().save();
     Stream::from(Cursor::new(encoded))
 }
 #[post("/model", format = "multipart", data = "<weights>")]
-pub fn load(wis: State<Arc<Mutex<dict_wisard::wisard::Wisard<u8>>>>, weights: ModelMultipart) {
+pub fn load(wis: State<Arc<Mutex<wisard::dict_wisard::Wisard<u8>>>>, weights: ModelMultipart) {
     wis.lock().unwrap().load(&weights.weights);
 }
 #[delete("/model")]
-pub fn erase(wis: State<Arc<Mutex<dict_wisard::wisard::Wisard<u8>>>>) {
+pub fn erase(wis: State<Arc<Mutex<wisard::dict_wisard::Wisard<u8>>>>) {
     wis.lock().unwrap().erase();
 }
 

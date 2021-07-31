@@ -1,5 +1,5 @@
 [package]
-name = "rocket_wisard"
+name = "rocket-wisard"
 version = "0.1.0"
 edition = "2018"
 
@@ -12,4 +12,4 @@ path = "lib/lib.rs"
 [dependencies]
 multipart = "0.18.0"
 rocket = "0.4.10"
-dict_wisard = { path = "../dict_wisard" }
+wisard = { path = "../wisard" }

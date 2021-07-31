@@ -1,4 +1,4 @@
-extern crate dict_wisard;
+extern crate wisard;
 
 use actix_files::NamedFile;
 use actix_multipart::Multipart;
@@ -7,11 +7,11 @@ use async_std::prelude::*;
 use env_logger::Env;
 use futures::{StreamExt, TryStreamExt};
 use serde::Deserialize;
-use std::sync::Mutex;
+use std::sync::RwLock;
 
 #[actix_web::main]
 pub async fn run() -> std::io::Result<()> {
-    let wis = web::Data::new(Mutex::new(dict_wisard::wisard::Wisard::<u8>::new()));
+    let wis = web::Data::new(RwLock::new(wisard::dict_wisard::Wisard::<u8>::new()));
 
     env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
 
@@ -37,10 +37,10 @@ pub async fn run() -> std::io::Result<()> {
 }
 
 async fn new(
-    wis: web::Data<Mutex<dict_wisard::wisard::Wisard<u8>>>,
+    wis: web::Data<RwLock<wisard::dict_wisard::Wisard<u8>>>,
     web::Query(model_info): web::Query<ModelRequestType>,
 ) -> Result<HttpResponse, Error> {
-    let mut unlocked_wis = match wis.lock() {
+    let mut unlocked_wis = match wis.write() {
         Ok(unlocked_wis) => unlocked_wis,
         Err(error) => {
             return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
@@ -57,7 +57,7 @@ async fn new(
 }
 
 async fn with_model(
-    wis: web::Data<Mutex<dict_wisard::wisard::Wisard<u8>>>,
+    wis: web::Data<RwLock<wisard::dict_wisard::Wisard<u8>>>,
     web::Query(model_info): web::Query<ModelRequestType>,
     mut payload: Multipart,
 ) -> Result<HttpResponse, Error> {
@@ -77,7 +77,7 @@ async fn with_model(
             v.write_all(&data).await?;
         }
     }
-    let mut unlocked_wis = match wis.lock() {
+    let mut unlocked_wis = match wis.write() {
         Ok(unlocked_wis) => unlocked_wis,
         Err(error) => {
             return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
@@ -96,7 +96,7 @@ async fn with_model(
 }
 
 async fn train(
-    wis: web::Data<Mutex<dict_wisard::wisard::Wisard<u8>>>,
+    wis: web::Data<RwLock<wisard::dict_wisard::Wisard<u8>>>,
     web::Path(label): web::Path<String>,
     mut payload: Multipart,
 ) -> Result<HttpResponse, Error> {
@@ -109,7 +109,7 @@ async fn train(
             v.write_all(&data).await?;
         }
     }
-    let mut unlocked_wis = match wis.lock() {
+    let mut unlocked_wis = match wis.write() {
         Ok(unlocked_wis) => unlocked_wis,
         Err(error) => {
             return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
@@ -123,7 +123,7 @@ async fn train(
 }
 
 async fn classify(
-    wis: web::Data<Mutex<dict_wisard::wisard::Wisard<u8>>>,
+    wis: web::Data<RwLock<wisard::dict_wisard::Wisard<u8>>>,
     mut payload: Multipart,
 ) -> Result<HttpResponse, Error> {
     let mut v = Vec::new();
@@ -135,7 +135,7 @@ async fn classify(
             v.write_all(&data).await?;
         }
     }
-    let mut unlocked_wis = match wis.lock() {
+    let unlocked_wis = match wis.read() {
         Ok(unlocked_wis) => unlocked_wis,
         Err(error) => {
             return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
@@ -150,15 +150,15 @@ async fn classify(
 }
 
 async fn save(
-    wis: web::Data<Mutex<dict_wisard::wisard::Wisard<u8>>>,
+    wis: web::Data<RwLock<wisard::dict_wisard::Wisard<u8>>>,
 ) -> actix_web::Result<NamedFile, Error> {
     //Cursor<Vec<u8>>
-    wis.lock().unwrap().save_to_file("/tmp/weights.bin");
+    wis.read().unwrap().save_to_file("/tmp/weights.bin");
     Ok(NamedFile::open("/tmp/weights.bin")?)
 }
 
 async fn load(
-    wis: web::Data<Mutex<dict_wisard::wisard::Wisard<u8>>>,
+    wis: web::Data<RwLock<wisard::dict_wisard::Wisard<u8>>>,
     mut payload: Multipart,
 ) -> Result<HttpResponse, Error> {
     let mut v = Vec::new();
@@ -170,7 +170,7 @@ async fn load(
             v.write_all(&data).await?;
         }
     }
-    let mut unlocked_wis = match wis.lock() {
+    let mut unlocked_wis = match wis.write() {
         Ok(unlocked_wis) => unlocked_wis,
         Err(error) => {
             return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
@@ -184,9 +184,9 @@ async fn load(
 }
 
 async fn erase(
-    wis: web::Data<Mutex<dict_wisard::wisard::Wisard<u8>>>,
+    wis: web::Data<RwLock<wisard::dict_wisard::Wisard<u8>>>,
 ) -> Result<HttpResponse, Error> {
-    let mut unlocked_wis = match wis.lock() {
+    let mut unlocked_wis = match wis.write() {
         Ok(unlocked_wis) => unlocked_wis,
         Err(error) => {
             return Ok(HttpResponse::from_error(error::ErrorInternalServerError(

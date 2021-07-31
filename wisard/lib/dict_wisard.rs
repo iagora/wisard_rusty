@@ -65,7 +65,7 @@ pub struct Wisard<T> {
 impl<T> Wisard<T> {
     pub fn new() -> Self
     where
-        T: PartialOrd + Copy,
+        T: PartialOrd + Copy + Send + Sync,
     {
         Wisard::with_params(28, 28, 0)
     }
@@ -109,9 +109,9 @@ impl<T> Wisard<T> {
         self.bleach = bleach;
     }
 
-    fn ranks(&mut self, samples: Vec<T>) -> Vec<u64>
+    fn ranks_t(&mut self, samples: Vec<T>) -> Vec<u64>
     where
-        T: PartialOrd + Copy,
+        T: PartialOrd + Copy + Send + Sync,
     {
         let mut vetor = Vec::with_capacity(self.addr_length as usize);
         let mut addresses = Vec::new();
@@ -138,9 +138,40 @@ impl<T> Wisard<T> {
         addresses
     }
 
+    fn ranks_c(&self, samples: Vec<T>) -> Vec<u64>
+    where
+        T: PartialOrd + Copy + Send + Sync,
+    {
+        let mut vetor = Vec::with_capacity(self.addr_length as usize);
+        let mut addresses = Vec::new();
+        for i in (0..samples.len()).step_by(self.addr_length as usize) {
+            if i + self.addr_length as usize <= samples.len() {
+                vetor.append(&mut samples[i..i + self.addr_length as usize].to_vec());
+            } else {
+                vetor.append(&mut samples[i..samples.len()].to_vec());
+            }
+            let mut tuples: Vec<(u64, &T)> = vetor
+                .iter()
+                .enumerate()
+                .map(|x| (x.0 as u64, x.1))
+                .collect();
+            tuples.sort_by(|a, b| a.1.partial_cmp(b.1).unwrap()); // TODO: treat the Option
+            let address: Vec<u64> = tuples.iter().map(|a| a.0).collect();
+            if !self.rank_tables.contains_key(&address) {
+                // self.rank_tables.insert(address.clone(), self.last_rank);
+                let tmp_rank = 1 + self.last_rank;
+                addresses.push(tmp_rank);
+            } else {
+                addresses.push(*self.rank_tables.get(&address).unwrap()); // TODO: treat the Option
+            }
+            vetor.clear();
+        }
+        addresses
+    }
+
     pub fn train(&mut self, data: Vec<T>, label: String)
     where
-        T: PartialOrd + Copy,
+        T: PartialOrd + Copy + Send + Sync,
     {
         if !self.discs.contains_key(&label) {
             self.discs
@@ -152,21 +183,21 @@ impl<T> Wisard<T> {
             .iter()
             .map(|&i| *data.get(i as usize).unwrap())
             .collect();
-        let addresses: Vec<u64> = self.ranks(samples);
+        let addresses: Vec<u64> = self.ranks_t(samples);
         let disc = self.discs.get_mut(&label).unwrap();
         disc.train(addresses);
     }
 
-    pub fn classify(&mut self, data: Vec<T>) -> (String, f64, f64)
+    pub fn classify(&self, data: Vec<T>) -> (String, f64, f64)
     where
-        T: PartialOrd + Copy,
+        T: PartialOrd + Copy + Send + Sync,
     {
         let samples = self.mapping.clone();
         let samples = samples
             .iter()
             .map(|&i| *data.get(i as usize).unwrap())
             .collect();
-        let addresses: Vec<u64> = self.ranks(samples);
+        let addresses: Vec<u64> = self.ranks_c(samples);
         let discs = &self.discs;
         let mut votes: Vec<(String, (u64, u64))> = discs
             .iter()
@@ -234,7 +265,7 @@ mod lib_tests {
             103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
             177, 161, 134, 98, 30, 190, 47,
         ];
-        wis.ranks(samples);
+        wis.ranks_t(samples);
         assert!(!wis.rank_tables.is_empty());
     }
     #[test]
@@ -248,7 +279,7 @@ mod lib_tests {
             103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
             177, 161, 134, 98, 30, 190, 47,
         ];
-        wis.ranks(samples);
+        wis.ranks_t(samples);
         let length1 = wis.rank_tables.len();
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
@@ -256,7 +287,7 @@ mod lib_tests {
             103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
             177, 161, 134, 98, 30, 190, 47,
         ];
-        wis.ranks(samples);
+        wis.ranks_t(samples);
         let length2 = wis.rank_tables.len();
         assert_eq!(length1, length2);
     }
@@ -271,7 +302,7 @@ mod lib_tests {
             103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
             177, 161, 134, 98, 30, 190, 47,
         ];
-        let addresses = wis.ranks(samples);
+        let addresses = wis.ranks_t(samples);
         assert_eq!(addresses, vec![0, 1, 2]);
     }
     #[test]
@@ -284,7 +315,7 @@ mod lib_tests {
             103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
             177, 161, 134, 98, 30, 190, 47,
         ];
-        let addresses = wis.ranks(samples);
+        let addresses = wis.ranks_t(samples);
         assert_eq!(addresses, vec![0, 1, 2]);
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
@@ -292,7 +323,7 @@ mod lib_tests {
             103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
             177, 161, 134, 98, 30, 190, 205,
         ];
-        let addresses = wis.ranks(samples);
+        let addresses = wis.ranks_t(samples);
         assert_eq!(addresses, vec![0, 1, 3]);
     }
 
@@ -308,7 +339,7 @@ mod lib_tests {
             103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
             177, 161, 134, 98, 30, 190, 47,
         ];
-        let _ = wis.ranks(samples);
+        let _ = wis.ranks_t(samples);
 
         wis.save_to_file("weights/weigths_u8.bin");
 
@@ -320,7 +351,7 @@ mod lib_tests {
             103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
             177, 161, 134, 98, 30, 190, 205,
         ];
-        let decoded_addresses = decoded.ranks(samples);
+        let decoded_addresses = decoded.ranks_t(samples);
 
         println!("{:?}", decoded_addresses);
 
@@ -339,7 +370,7 @@ mod lib_tests {
             103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
             177, 161, 134, 98, 30, 190, 47,
         ];
-        let _ = wis.ranks(samples);
+        let _ = wis.ranks_t(samples);
 
         wis.erase();
 
@@ -349,7 +380,7 @@ mod lib_tests {
             103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
             177, 161, 134, 98, 30, 190, 205,
         ];
-        let decoded_addresses = wis.ranks(samples);
+        let decoded_addresses = wis.ranks_t(samples);
 
         assert_eq!(vec![0, 1, 2], decoded_addresses);
     }
