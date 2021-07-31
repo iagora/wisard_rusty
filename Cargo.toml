@@ -1,5 +1,5 @@
 [package]
-name = "wisard_rusty"
+name = "rusty-wisard"
 version = "0.1.0"
 edition = "2018"
 
@@ -17,10 +17,16 @@ path = "src/dict_test.rs"
 name = "actix_wisard_test"
 path = "src/actix_test.rs"
 
+[lib]
+name = "dataloaders"
+path = "lib/dataloaders.rs"
+
 [workspace]
-members = ["dict_wisard", "rocket_wisard", "actix_wisard"]
+members = ["wisard", "rocket_wisard", "actix_wisard"]
 
 [dependencies]
-actix_wisard = { path = "actix_wisard" }
-rocket_wisard = { path = "rocket_wisard" }
-dict_wisard = { path = "dict_wisard" }
+actix-wisard = { path = "actix_wisard" }
+rocket-wisard = { path = "rocket_wisard" }
+wisard = { path = "wisard" }
+flate2 = "1.0.20"
+byteorder = "1.4.3"
