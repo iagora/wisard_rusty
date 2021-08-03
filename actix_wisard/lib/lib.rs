@@ -8,7 +8,7 @@ use actix_web::{
 use async_std::prelude::*;
 use env_logger::Env;
 use futures::{StreamExt, TryStreamExt};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::sync::RwLock;
 
 #[actix_web::main]
@@ -22,11 +22,11 @@ pub async fn run() -> std::io::Result<()> {
             .app_data(wis.clone())
             .wrap(middleware::Compress::default())
             .wrap(middleware::Logger::default())
-            .wrap(middleware::Logger::new("%a %{User-Agent}i"))
+            .wrap(middleware::Logger::new("%a %{User-Agent}i %D %U %s"))
             .service(web::resource("/new").route(web::post().to(new)))
-            .service(web::resource("/with_model").route(web::post().to(with_model)))
             .service(web::resource("/train?{label}>").route(web::post().to(train)))
             .service(web::resource("/classify").route(web::post().to(classify)))
+            .service(web::resource("/info").route(web::get().to(info)))
             .service(
                 web::resource("/model")
                     .route(web::get().to(save))
@@ -41,7 +41,7 @@ pub async fn run() -> std::io::Result<()> {
 
 async fn new(
     wis: web::Data<RwLock<wisard::dict_wisard::Wisard<u8>>>,
-    web::Query(model_info): web::Query<ModelRequestType>,
+    web::Query(model_info): web::Query<ModelInfo>,
 ) -> Result<HttpResponse, Error> {
     let mut unlocked_wis = match wis.write() {
         Ok(unlocked_wis) => unlocked_wis,
@@ -59,28 +59,10 @@ async fn new(
     Ok(HttpResponse::Ok().into())
 }
 
-async fn with_model(
+async fn info(
     wis: web::Data<RwLock<wisard::dict_wisard::Wisard<u8>>>,
-    web::Query(model_info): web::Query<ModelRequestType>,
-    mut payload: Multipart,
 ) -> Result<HttpResponse, Error> {
-    let mut v = Vec::new();
-    // iterate over multipart stream
-    while let Ok(Some(mut field)) = payload.try_next().await {
-        // let content_type = field
-        //     .content_disposition()
-        //     .ok_or_else(|| actix_web::error::ParseError::Incomplete)?;
-        // let filename = content_type
-        //     .get_filename()
-        //     .ok_or_else(|| actix_web::error::ParseError::Incomplete)?;
-
-        // Field in turn is stream of *Bytes* object
-        while let Some(chunk) = field.next().await {
-            let data = chunk.unwrap();
-            v.write_all(&data).await?;
-        }
-    }
-    let mut unlocked_wis = match wis.write() {
+    let unlocked_wis = match wis.read() {
         Ok(unlocked_wis) => unlocked_wis,
         Err(error) => {
             return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
@@ -88,29 +70,27 @@ async fn with_model(
             )))
         }
     };
-    unlocked_wis.erase_and_change_hyperparameters(
-        model_info.hashtables,
-        model_info.addresses,
-        model_info.bleach,
-    );
-    unlocked_wis.load(&v);
-
-    Ok(HttpResponse::Ok().into())
+    let (hashtables, addresses, bleach) = unlocked_wis.get_info();
+    Ok(HttpResponse::Ok().json(ModelInfo {
+        hashtables: hashtables,
+        addresses: addresses,
+        bleach: bleach,
+    }))
 }
 
 async fn train(
     wis: web::Data<RwLock<wisard::dict_wisard::Wisard<u8>>>,
     web::Path(label): web::Path<String>,
-    mut payload: Multipart,
+    mut payload: web::Payload,
 ) -> Result<HttpResponse, Error> {
     let mut v = Vec::new();
-    // iterate over multipart stream
-    while let Ok(Some(mut field)) = payload.try_next().await {
-        // Field in turn is stream of *Bytes* object
-        while let Some(chunk) = field.next().await {
-            let data = chunk.unwrap();
-            v.write_all(&data).await?;
+    while let Some(chunk) = payload.next().await {
+        let data = chunk.unwrap();
+        // limit max size of in-memory payload
+        if (v.len() + data.len()) > MAX_SIZE {
+            return Err(error::ErrorBadRequest("overflow"));
         }
+        v.write_all(&data).await?;
     }
     let mut unlocked_wis = match wis.write() {
         Ok(unlocked_wis) => unlocked_wis,
@@ -127,17 +107,25 @@ async fn train(
 
 async fn classify(
     wis: web::Data<RwLock<wisard::dict_wisard::Wisard<u8>>>,
-    mut payload: Multipart,
+    mut payload: web::Payload,
 ) -> Result<HttpResponse, Error> {
     let mut v = Vec::new();
-    // iterate over multipart stream
-    while let Ok(Some(mut field)) = payload.try_next().await {
-        // Field in turn is stream of *Bytes* object
-        while let Some(chunk) = field.next().await {
-            let data = chunk.unwrap();
-            v.write_all(&data).await?;
+    while let Some(chunk) = payload.next().await {
+        let data = chunk.unwrap();
+        // limit max size of in-memory payload
+        if (v.len() + data.len()) > MAX_SIZE {
+            return Err(error::ErrorBadRequest("overflow"));
         }
+        v.write_all(&data).await?;
     }
+    // // iterate over multipart stream
+    // while let Ok(Some(mut field)) = payload.try_next().await {
+    //     // Field in turn is stream of *Bytes* object
+    //     while let Some(chunk) = field.next().await {
+    //         let data = chunk.unwrap();
+    //         v.write_all(&data).await?;
+    //     }
+    // }
     let unlocked_wis = match wis.read() {
         Ok(unlocked_wis) => unlocked_wis,
         Err(error) => {
@@ -147,9 +135,7 @@ async fn classify(
         }
     };
     let (label, _, _) = unlocked_wis.classify(v);
-    Ok(HttpResponse::Ok()
-        .content_type("text/plain")
-        .body(format!("{}", label)))
+    Ok(HttpResponse::Ok().json(ClassifyResponse { label: label }))
 }
 
 async fn save(
@@ -208,9 +194,14 @@ async fn erase(
     Ok(HttpResponse::Ok().into())
 }
 
-#[derive(Default, Debug, Deserialize)]
-struct ModelRequestType {
+#[derive(Default, Debug, Deserialize, Serialize)]
+struct ModelInfo {
     hashtables: u16,
     addresses: u16,
     bleach: u16,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct ClassifyResponse {
+    label: String,
 }

@@ -63,6 +63,9 @@ pub struct Wisard<T> {
 }
 
 impl<T> Wisard<T> {
+    pub fn get_info(&self) -> (u16, u16, u16) {
+        return (self.number_of_hashtables, self.addr_length, self.bleach);
+    }
     pub fn new() -> Self
     where
         T: PartialOrd + Copy + Send + Sync,
