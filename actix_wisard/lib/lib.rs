@@ -1,8 +1,10 @@
 extern crate wisard;
 
-use actix_files::NamedFile;
 use actix_multipart::Multipart;
-use actix_web::{error, middleware, web, App, Error, HttpResponse, HttpServer};
+use actix_web::{
+    dev::BodyEncoding, error, http::ContentEncoding, middleware, web, App, Error, HttpResponse,
+    HttpServer,
+};
 use async_std::prelude::*;
 use env_logger::Env;
 use futures::{StreamExt, TryStreamExt};
@@ -18,6 +20,7 @@ pub async fn run() -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .app_data(wis.clone())
+            .wrap(middleware::Compress::default())
             .wrap(middleware::Logger::default())
             .wrap(middleware::Logger::new("%a %{User-Agent}i"))
             .service(web::resource("/new").route(web::post().to(new)))
@@ -151,11 +154,13 @@ async fn classify(
 
 async fn save(
     wis: web::Data<RwLock<wisard::dict_wisard::Wisard<u8>>>,
-) -> actix_web::Result<NamedFile, Error> {
-    //Cursor<Vec<u8>>
-    wis.read().unwrap().save_to_file("/tmp/weights.bin");
-    Ok(NamedFile::open("/tmp/weights.bin")?)
+) -> Result<HttpResponse, Error> {
+    Ok(HttpResponse::Ok()
+        .encoding(ContentEncoding::Gzip)
+        .body(wis.read().unwrap().save()))
 }
+
+const MAX_SIZE: usize = 500_000_000; // 500MB limit
 
 async fn load(
     wis: web::Data<RwLock<wisard::dict_wisard::Wisard<u8>>>,
@@ -167,6 +172,10 @@ async fn load(
         // Field in turn is stream of *Bytes* object
         while let Some(chunk) = field.next().await {
             let data = chunk.unwrap();
+            // limit max size of in-memory payload
+            if (v.len() + data.len()) > MAX_SIZE {
+                return Err(error::ErrorBadRequest("overflow"));
+            }
             v.write_all(&data).await?;
         }
     }
@@ -199,7 +208,7 @@ async fn erase(
     Ok(HttpResponse::Ok().into())
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Default, Debug, Deserialize)]
 struct ModelRequestType {
     hashtables: u16,
     addresses: u16,
