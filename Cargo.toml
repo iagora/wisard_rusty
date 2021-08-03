@@ -17,6 +17,10 @@ path = "src/dict_test.rs"
 name = "actix_wisard_test"
 path = "src/actix_test.rs"
 
+[[bin]]
+name = "actix_client_test"
+path = "src/actix_client.rs"
+
 [lib]
 name = "dataloaders"
 path = "lib/dataloaders.rs"
@@ -25,6 +29,7 @@ path = "lib/dataloaders.rs"
 members = ["wisard", "rocket_wisard", "actix_wisard"]
 
 [dependencies]
+async-std = { version = "1.9.0", features = ["attributes"] }
 actix-wisard = { path = "actix_wisard" }
 rocket-wisard = { path = "rocket_wisard" }
 wisard = { path = "wisard" }
@@ -33,3 +38,5 @@ byteorder = "1.4.3"
 image = "0.23.14"
 serde = { version = "1.0.126", features = ["derive"] }
 serde_json = "1.0.66"
+surf = "2.2.0"
+http-types = "2.11.1"
