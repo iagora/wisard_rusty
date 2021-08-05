@@ -1,13 +1,13 @@
 extern crate wisard;
 
-use actix_multipart::Multipart;
+// use actix_multipart::Multipart;
 use actix_web::{
-    dev::BodyEncoding, error, http::ContentEncoding, middleware, web, App, Error, HttpResponse,
-    HttpServer,
+    dev::BodyEncoding, dev::Decompress, error, guard, http::ContentEncoding, middleware, web, App,
+    Error, HttpResponse, HttpServer,
 };
 use async_std::prelude::*;
 use env_logger::Env;
-use futures::{StreamExt, TryStreamExt};
+use futures::StreamExt; //, TryStreamExt};
 use serde::{Deserialize, Serialize};
 use std::sync::RwLock;
 
@@ -30,7 +30,11 @@ pub async fn run() -> std::io::Result<()> {
             .service(
                 web::resource("/model")
                     .route(web::get().to(save))
-                    .route(web::post().to(load))
+                    .route(
+                        web::post()
+                            .guard(guard::Header("content-encoding", "gzip"))
+                            .to(load),
+                    )
                     .route(web::delete().to(erase)),
             )
     })
@@ -78,6 +82,8 @@ async fn info(
     }))
 }
 
+const STREAM_MAX_SIZE: usize = 10_000_000; // 500MB limit
+
 async fn train(
     wis: web::Data<RwLock<wisard::dict_wisard::Wisard<u8>>>,
     web::Path(label): web::Path<String>,
@@ -87,7 +93,7 @@ async fn train(
     while let Some(chunk) = payload.next().await {
         let data = chunk.unwrap();
         // limit max size of in-memory payload
-        if (v.len() + data.len()) > MAX_SIZE {
+        if (v.len() + data.len()) > STREAM_MAX_SIZE {
             return Err(error::ErrorBadRequest("overflow"));
         }
         v.write_all(&data).await?;
@@ -113,19 +119,12 @@ async fn classify(
     while let Some(chunk) = payload.next().await {
         let data = chunk.unwrap();
         // limit max size of in-memory payload
-        if (v.len() + data.len()) > MAX_SIZE {
+        if (v.len() + data.len()) > STREAM_MAX_SIZE {
             return Err(error::ErrorBadRequest("overflow"));
         }
         v.write_all(&data).await?;
     }
-    // // iterate over multipart stream
-    // while let Ok(Some(mut field)) = payload.try_next().await {
-    //     // Field in turn is stream of *Bytes* object
-    //     while let Some(chunk) = field.next().await {
-    //         let data = chunk.unwrap();
-    //         v.write_all(&data).await?;
-    //     }
-    // }
+
     let unlocked_wis = match wis.read() {
         Ok(unlocked_wis) => unlocked_wis,
         Err(error) => {
@@ -146,25 +145,23 @@ async fn save(
         .body(wis.read().unwrap().save()))
 }
 
-const MAX_SIZE: usize = 500_000_000; // 500MB limit
+const WEIGHT_MAX_SIZE: usize = 500_000_000; // 500MB limit
 
 async fn load(
     wis: web::Data<RwLock<wisard::dict_wisard::Wisard<u8>>>,
-    mut payload: Multipart,
+    mut payload: web::Payload,
 ) -> Result<HttpResponse, Error> {
+    let mut decoder = Decompress::new(&mut payload, ContentEncoding::Gzip);
     let mut v = Vec::new();
-    // iterate over multipart stream
-    while let Ok(Some(mut field)) = payload.try_next().await {
-        // Field in turn is stream of *Bytes* object
-        while let Some(chunk) = field.next().await {
-            let data = chunk.unwrap();
-            // limit max size of in-memory payload
-            if (v.len() + data.len()) > MAX_SIZE {
-                return Err(error::ErrorBadRequest("overflow"));
-            }
-            v.write_all(&data).await?;
+    while let Some(chunk) = decoder.next().await {
+        let data = chunk.unwrap();
+        // limit max size of in-memory payload
+        if (v.len() + data.len()) > WEIGHT_MAX_SIZE {
+            return Err(error::ErrorBadRequest("overflow"));
         }
+        v.write_all(&data).await?;
     }
+
     let mut unlocked_wis = match wis.write() {
         Ok(unlocked_wis) => unlocked_wis,
         Err(error) => {
