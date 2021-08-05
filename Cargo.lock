@@ -2707,6 +2707,7 @@ dependencies = [
  "async-std",
  "byteorder",
  "flate2",
+ "futures",
  "http-types",
  "image",
  "rocket-wisard",
