@@ -21,8 +21,9 @@ pub async fn run() -> std::io::Result<()> {
         App::new()
             .app_data(wis.clone())
             .wrap(middleware::Compress::default())
-            .wrap(middleware::Logger::default())
-            .wrap(middleware::Logger::new("%a %{User-Agent}i %D %U %s"))
+            .wrap(middleware::Logger::new(
+                "%a %t %r %b %{Referer}i %{User-Agent}i %s %T",
+            ))
             .service(web::resource("/new").route(web::post().to(new)))
             .service(web::resource("/train?{label}>").route(web::post().to(train)))
             .service(web::resource("/classify").route(web::post().to(classify)))
