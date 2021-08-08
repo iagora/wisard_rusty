@@ -1,3 +1,4 @@
+use crate::errors::WisardError;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
@@ -22,18 +23,19 @@ impl Discriminator {
         }
     }
 
-    pub fn train(&mut self, x: Vec<u64>) {
+    pub fn train(&mut self, x: Vec<u64>) -> Result<(), WisardError> {
         for i in 0..self.number_of_hashtables {
             let key = x[i as usize];
             let counter = self
                 .h_rams
                 .get_mut(i as usize)
-                .unwrap()
+                .ok_or_else(|| WisardError::WisardOutOfBounds)?
                 .entry(key)
                 .or_insert(0);
             *counter += 1;
         }
         self.times_trained += 1;
+        Ok(())
     }
 
     pub fn classify(&self, x: &Vec<u64>, bleach: u16) -> (u64, u64) {
@@ -112,7 +114,7 @@ impl<T> Wisard<T> {
         self.bleach = bleach;
     }
 
-    fn ranks_t(&mut self, samples: Vec<T>) -> Vec<u64>
+    fn ranks_t(&mut self, samples: Vec<&T>) -> Vec<u64>
     where
         T: PartialOrd + Copy + Send + Sync,
     {
@@ -127,7 +129,7 @@ impl<T> Wisard<T> {
             let mut tuples: Vec<(u64, &T)> = vetor
                 .iter()
                 .enumerate()
-                .map(|x| (x.0 as u64, x.1))
+                .map(|x| (x.0 as u64, *x.1))
                 .collect();
             tuples.sort_by(|a, b| a.1.partial_cmp(b.1).unwrap()); // TODO: treat the Option
             let address: Vec<u64> = tuples.iter().map(|a| a.0).collect();
@@ -141,7 +143,7 @@ impl<T> Wisard<T> {
         addresses
     }
 
-    fn ranks_c(&self, samples: Vec<T>) -> Vec<u64>
+    fn ranks_c(&self, samples: Vec<&T>) -> Vec<u64>
     where
         T: PartialOrd + Copy + Send + Sync,
     {
@@ -156,7 +158,7 @@ impl<T> Wisard<T> {
             let mut tuples: Vec<(u64, &T)> = vetor
                 .iter()
                 .enumerate()
-                .map(|x| (x.0 as u64, x.1))
+                .map(|x| (x.0 as u64, *x.1))
                 .collect();
             tuples.sort_by(|a, b| a.1.partial_cmp(b.1).unwrap()); // TODO: treat the Option
             let address: Vec<u64> = tuples.iter().map(|a| a.0).collect();
@@ -172,7 +174,7 @@ impl<T> Wisard<T> {
         addresses
     }
 
-    pub fn train(&mut self, data: Vec<T>, label: String)
+    pub fn train(&mut self, data: Vec<T>, label: String) -> Result<(), WisardError>
     where
         T: PartialOrd + Copy + Send + Sync,
     {
@@ -184,22 +186,25 @@ impl<T> Wisard<T> {
         let samples = self.mapping.clone();
         let samples = samples
             .iter()
-            .map(|&i| *data.get(i as usize).unwrap())
-            .collect();
+            .map(|&i| data.get(i as usize))
+            .collect::<Option<Vec<_>>>()
+            .ok_or_else(|| WisardError::WisardOutOfBounds)?;
         let addresses: Vec<u64> = self.ranks_t(samples);
         let disc = self.discs.get_mut(&label).unwrap();
-        disc.train(addresses);
+        disc.train(addresses)?;
+        Ok(())
     }
 
-    pub fn classify(&self, data: Vec<T>) -> (String, f64, f64)
+    pub fn classify(&self, data: Vec<T>) -> Result<String, WisardError>
     where
         T: PartialOrd + Copy + Send + Sync,
     {
         let samples = self.mapping.clone();
         let samples = samples
             .iter()
-            .map(|&i| *data.get(i as usize).unwrap())
-            .collect();
+            .map(|&i| data.get(i as usize))
+            .collect::<Option<Vec<_>>>()
+            .ok_or_else(|| WisardError::WisardOutOfBounds)?;
         let addresses: Vec<u64> = self.ranks_c(samples);
         let discs = &self.discs;
         let mut votes: Vec<(String, (u64, u64))> = discs
@@ -208,21 +213,27 @@ impl<T> Wisard<T> {
             .collect();
         votes.sort_by(|a, b| (a.1).0.partial_cmp(&(b.1).0).unwrap());
 
-        let biggest = votes.len().checked_sub(1).map(|i| &votes[i]).unwrap();
-        let second_biggest = votes.len().checked_sub(2).map(|i| &votes[i]).unwrap();
+        let biggest = votes
+            .iter()
+            .last()
+            .ok_or_else(|| WisardError::WisardOutOfBounds)?;
 
-        (
-            biggest.0.clone(),                                        // elected label
-            (biggest.1 .0 as f64 / self.number_of_hashtables as f64), // "acc"
-            (biggest.1 .0 as f64 - second_biggest.1 .0 as f64) / biggest.1 .0 as f64, // confidence
+        Ok(
+            biggest.0.clone(), // elected label
         )
     }
-    pub fn save(&self) -> Vec<u8> {
-        let encoded: Vec<u8> = bincode::serialize(&self).unwrap();
-        encoded
+    pub fn save(&self) -> Result<Vec<u8>, WisardError> {
+        let encoded: Vec<u8> = match bincode::serialize(&self) {
+            Ok(enc) => enc,
+            Err(_) => return Err(WisardError::WisardValidationFailed),
+        };
+        Ok(encoded)
     }
-    pub fn load(&mut self, stream: &[u8]) {
-        let decoded: Wisard<T> = bincode::deserialize(stream).unwrap();
+    pub fn load(&mut self, stream: &[u8]) -> Result<(), WisardError> {
+        let decoded: Wisard<T> = match bincode::deserialize(stream) {
+            Ok(res) => res,
+            Err(_) => return Err(WisardError::WisardValidationFailed),
+        };
         self.discs = decoded.discs;
         self.addr_length = decoded.addr_length;
         self.number_of_hashtables = decoded.number_of_hashtables;
@@ -230,14 +241,27 @@ impl<T> Wisard<T> {
         self.last_rank = decoded.last_rank;
         self.rank_tables = decoded.rank_tables;
         self.bleach = decoded.bleach;
+        Ok(())
     }
-    pub fn save_to_file<P: AsRef<Path>>(&self, path: P) {
-        let mut file = File::create(path).unwrap();
-        bincode::serialize_into(&mut file, &self).unwrap();
+    pub fn save_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), WisardError> {
+        let mut file = match File::create(path) {
+            Ok(f) => f,
+            Err(_) => return Err(WisardError::WisardIOError),
+        };
+        match bincode::serialize_into(&mut file, &self) {
+            Ok(_) => Ok(()),
+            Err(_) => return Err(WisardError::WisardValidationFailed),
+        }
     }
-    pub fn load_from_file<P: AsRef<Path>>(&mut self, path: P) {
-        let file = File::open(path).unwrap();
-        let decoded: Wisard<T> = bincode::deserialize_from(file).unwrap();
+    pub fn load_from_file<P: AsRef<Path>>(&mut self, path: P) -> Result<(), WisardError> {
+        let file = match File::open(path) {
+            Ok(f) => f,
+            Err(_) => return Err(WisardError::WisardIOError),
+        };
+        let decoded: Wisard<T> = match bincode::deserialize_from(file) {
+            Ok(d) => d,
+            Err(_) => return Err(WisardError::WisardValidationFailed),
+        };
         self.discs = decoded.discs;
         self.addr_length = decoded.addr_length;
         self.number_of_hashtables = decoded.number_of_hashtables;
@@ -245,6 +269,7 @@ impl<T> Wisard<T> {
         self.last_rank = decoded.last_rank;
         self.rank_tables = decoded.rank_tables;
         self.bleach = decoded.bleach;
+        Ok(())
     }
     pub fn erase(&mut self) {
         self.mapping.shuffle(&mut thread_rng());
@@ -268,7 +293,7 @@ mod lib_tests {
             103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
             177, 161, 134, 98, 30, 190, 47,
         ];
-        wis.ranks_t(samples);
+        wis.ranks_t(samples.iter().collect());
         assert!(!wis.rank_tables.is_empty());
     }
     #[test]
@@ -282,7 +307,7 @@ mod lib_tests {
             103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
             177, 161, 134, 98, 30, 190, 47,
         ];
-        wis.ranks_t(samples);
+        wis.ranks_t(samples.iter().collect());
         let length1 = wis.rank_tables.len();
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
@@ -290,7 +315,7 @@ mod lib_tests {
             103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
             177, 161, 134, 98, 30, 190, 47,
         ];
-        wis.ranks_t(samples);
+        wis.ranks_t(samples.iter().collect());
         let length2 = wis.rank_tables.len();
         assert_eq!(length1, length2);
     }
@@ -305,7 +330,7 @@ mod lib_tests {
             103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
             177, 161, 134, 98, 30, 190, 47,
         ];
-        let addresses = wis.ranks_t(samples);
+        let addresses = wis.ranks_t(samples.iter().collect());
         assert_eq!(addresses, vec![0, 1, 2]);
     }
     #[test]
@@ -318,7 +343,7 @@ mod lib_tests {
             103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
             177, 161, 134, 98, 30, 190, 47,
         ];
-        let addresses = wis.ranks_t(samples);
+        let addresses = wis.ranks_t(samples.iter().collect());
         assert_eq!(addresses, vec![0, 1, 2]);
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
@@ -326,7 +351,7 @@ mod lib_tests {
             103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
             177, 161, 134, 98, 30, 190, 205,
         ];
-        let addresses = wis.ranks_t(samples);
+        let addresses = wis.ranks_t(samples.iter().collect());
         assert_eq!(addresses, vec![0, 1, 3]);
     }
 
@@ -342,19 +367,19 @@ mod lib_tests {
             103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
             177, 161, 134, 98, 30, 190, 47,
         ];
-        let _ = wis.ranks_t(samples);
+        let _ = wis.ranks_t(samples.iter().collect());
 
-        wis.save_to_file("weights/weigths_u8.bin");
+        wis.save_to_file("weights/weigths_u8.bin").unwrap();
 
         let mut decoded = Wisard::new();
-        decoded.load_from_file("weights/weigths_u8.bin");
+        decoded.load_from_file("weights/weigths_u8.bin").unwrap();
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
             107, 73, 168, 95, 63, 11, 2, 49, 130, 43, 92, 110, 13, 157, 125, 6, 93, 119, 86, 85,
             103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
             177, 161, 134, 98, 30, 190, 205,
         ];
-        let decoded_addresses = decoded.ranks_t(samples);
+        let decoded_addresses = decoded.ranks_t(samples.iter().collect());
 
         println!("{:?}", decoded_addresses);
 
@@ -373,7 +398,7 @@ mod lib_tests {
             103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
             177, 161, 134, 98, 30, 190, 47,
         ];
-        let _ = wis.ranks_t(samples);
+        let _ = wis.ranks_t(samples.iter().collect());
 
         wis.erase();
 
@@ -383,7 +408,7 @@ mod lib_tests {
             103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
             177, 161, 134, 98, 30, 190, 205,
         ];
-        let decoded_addresses = wis.ranks_t(samples);
+        let decoded_addresses = wis.ranks_t(samples.iter().collect());
 
         assert_eq!(vec![0, 1, 2], decoded_addresses);
     }

@@ -56,7 +56,7 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
 
     let now = Instant::now();
     for (image, classification) in images.into_iter().zip(classifications.into_iter()) {
-        wis.train(image, classification.to_string());
+        wis.train(image, classification.to_string())?;
     }
     println!("Training took: {} milliseconds", now.elapsed().as_millis());
 
@@ -87,9 +87,8 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
     let now = Instant::now();
 
     for (image, classification) in images.into_iter().zip(classifications.into_iter()) {
-        let tuple: (String, f64, f64);
-        tuple = wis.classify(image);
-        if tuple.0 == classification.to_string() {
+        let label: String = wis.classify(image)?;
+        if label == classification.to_string() {
             hit += 1;
         }
         count += 1;
