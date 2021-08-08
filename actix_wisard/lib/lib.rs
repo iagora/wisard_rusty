@@ -92,7 +92,7 @@ async fn train(
 ) -> Result<HttpResponse, Error> {
     let mut v = Vec::new();
     while let Some(chunk) = payload.next().await {
-        let data = chunk.unwrap();
+        let data = chunk?;
         // limit max size of in-memory payload
         if (v.len() + data.len()) > STREAM_MAX_SIZE {
             return Err(error::ErrorBadRequest("overflow"));
@@ -107,9 +107,15 @@ async fn train(
             )))
         }
     };
-    unlocked_wis.train(v, label);
 
-    Ok(HttpResponse::Ok().into())
+    match unlocked_wis.train(v, label) {
+        Ok(_) => return Ok(HttpResponse::Ok().into()),
+        Err(error) => {
+            return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
+                format!("Wisard internal error: {}", error),
+            )))
+        }
+    }
 }
 
 async fn classify(
@@ -118,7 +124,7 @@ async fn classify(
 ) -> Result<HttpResponse, Error> {
     let mut v = Vec::new();
     while let Some(chunk) = payload.next().await {
-        let data = chunk.unwrap();
+        let data = chunk?;
         // limit max size of in-memory payload
         if (v.len() + data.len()) > STREAM_MAX_SIZE {
             return Err(error::ErrorBadRequest("overflow"));
@@ -134,16 +140,40 @@ async fn classify(
             )))
         }
     };
-    let (label, _, _) = unlocked_wis.classify(v);
-    Ok(HttpResponse::Ok().json(ClassifyResponse { label: label }))
+
+    match unlocked_wis.classify(v) {
+        Ok(label) => return Ok(HttpResponse::Ok().json(ClassifyResponse { label: label })),
+        Err(error) => {
+            return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
+                format!("Wisard internal error: {}", error),
+            )))
+        }
+    }
 }
 
 async fn save(
     wis: web::Data<RwLock<wisard::dict_wisard::Wisard<u8>>>,
 ) -> Result<HttpResponse, Error> {
+    let unlocked_wis = match wis.read() {
+        Ok(unlocked_wis) => unlocked_wis,
+        Err(error) => {
+            return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
+                format!("Failed to get lock on cache: {}", error),
+            )))
+        }
+    };
+    let encoded = match unlocked_wis.save() {
+        Ok(e) => e,
+        Err(error) => {
+            return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
+                format!("Wisard found an error while saving: {}", error),
+            )))
+        }
+    };
+
     Ok(HttpResponse::Ok()
         .encoding(ContentEncoding::Gzip)
-        .body(wis.read().unwrap().save()))
+        .body(encoded))
 }
 
 const WEIGHT_MAX_SIZE: usize = 500_000_000; // 500MB limit
@@ -155,7 +185,7 @@ async fn load(
     let mut decoder = Decompress::new(&mut payload, ContentEncoding::Gzip);
     let mut v = Vec::new();
     while let Some(chunk) = decoder.next().await {
-        let data = chunk.unwrap();
+        let data = chunk?;
         // limit max size of in-memory payload
         if (v.len() + data.len()) > WEIGHT_MAX_SIZE {
             return Err(error::ErrorBadRequest("overflow"));
@@ -171,9 +201,15 @@ async fn load(
             )))
         }
     };
-    unlocked_wis.load(&v);
 
-    Ok(HttpResponse::Ok().into())
+    match unlocked_wis.load(&v) {
+        Ok(_) => return Ok(HttpResponse::Ok().into()),
+        Err(error) => {
+            return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
+                format!("Wisard internal error: {}", error),
+            )))
+        }
+    }
 }
 
 async fn erase(

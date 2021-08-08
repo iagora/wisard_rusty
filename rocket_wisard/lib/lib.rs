@@ -39,13 +39,13 @@ pub fn with_model(wis: State<Arc<Mutex<wisard::dict_wisard::Wisard<u8>>>>, model
         model.addr_length,
         model.bleach,
     );
-    unlocked_wis.load(&model.weights);
+    unlocked_wis.load(&model.weights).unwrap();
 }
 
 #[post("/train", format = "multipart", data = "<image>")]
 pub fn train(wis: State<Arc<Mutex<wisard::dict_wisard::Wisard<u8>>>>, image: TrainImageMultipart) {
     let mut unlocked_wis = wis.lock().unwrap();
-    unlocked_wis.train(image.image, image.label);
+    unlocked_wis.train(image.image, image.label).unwrap();
 }
 
 #[post("/classify", format = "multipart", data = "<image>")]
@@ -53,18 +53,16 @@ pub fn classify(
     wis: State<Arc<Mutex<wisard::dict_wisard::Wisard<u8>>>>,
     image: ClassifyImageMultipart,
 ) -> String {
-    let (label, _, _) = wis.lock().unwrap().classify(image.image);
-    return label;
+    return wis.lock().unwrap().classify(image.image).unwrap();
 }
-
 #[get("/model")]
 pub fn save(wis: State<Arc<Mutex<wisard::dict_wisard::Wisard<u8>>>>) -> Stream<Cursor<Vec<u8>>> {
-    let encoded: Vec<u8> = wis.lock().unwrap().save();
+    let encoded: Vec<u8> = wis.lock().unwrap().save().unwrap();
     Stream::from(Cursor::new(encoded))
 }
 #[post("/model", format = "multipart", data = "<weights>")]
 pub fn load(wis: State<Arc<Mutex<wisard::dict_wisard::Wisard<u8>>>>, weights: ModelMultipart) {
-    wis.lock().unwrap().load(&weights.weights);
+    wis.lock().unwrap().load(&weights.weights).unwrap();
 }
 #[delete("/model")]
 pub fn erase(wis: State<Arc<Mutex<wisard::dict_wisard::Wisard<u8>>>>) {
