@@ -15,7 +15,7 @@ use std::sync::RwLock;
 #[actix_web::main]
 pub async fn run<K>(wis: Box<dyn WisardNetwork<K> + Send + Sync + 'static>) -> std::io::Result<()>
 where
-    K: PartialOrd + Copy + Send + Sync + 'static,
+    K: PartialOrd + Copy + Send + Sync + From<u8> + 'static,
 {
     let wis = web::Data::new(RwLock::new(wis));
 
@@ -63,7 +63,7 @@ where
             )))
         }
     };
-    unlocked_wis.erase_and_change_hyperparameters(
+    unlocked_wis.change_hyperparameters(
         model_info.hashtables,
         model_info.addresses,
         model_info.bleach,
@@ -101,7 +101,7 @@ async fn train<K>(
     mut payload: web::Payload,
 ) -> Result<HttpResponse, Error>
 where
-    K: PartialOrd + Copy + Send + Sync,
+    K: PartialOrd + Copy + Send + Sync + From<u8>,
 {
     let mut v = Vec::new();
     while let Some(chunk) = payload.next().await {
@@ -121,7 +121,7 @@ where
         }
     };
 
-    match unlocked_wis.train(v, label) {
+    match unlocked_wis.train(v.iter().map(|x| K::from(*x)).collect(), label) {
         Ok(_) => return Ok(HttpResponse::Ok().into()),
         Err(error) => {
             return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
@@ -136,7 +136,7 @@ async fn classify<K>(
     mut payload: web::Payload,
 ) -> Result<HttpResponse, Error>
 where
-    K: PartialOrd + Copy + Send + Sync,
+    K: PartialOrd + Copy + Send + Sync + From<u8>,
 {
     let mut v = Vec::new();
     while let Some(chunk) = payload.next().await {
@@ -157,7 +157,7 @@ where
         }
     };
 
-    match unlocked_wis.classify(v) {
+    match unlocked_wis.classify(v.iter().map(|x| K::from(*x)).collect()) {
         Ok(label) => return Ok(HttpResponse::Ok().json(ClassifyResponse { label: label })),
         Err(error) => {
             return Ok(HttpResponse::from_error(error::ErrorInternalServerError(

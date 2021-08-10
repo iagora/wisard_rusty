@@ -6,7 +6,7 @@ use std::fs::File;
 use std::marker::PhantomData;
 use std::path::Path;
 
-use crate::errors::WisardError;
+use crate::error::WisardError;
 use crate::wisard_traits::WisardNetwork;
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -170,6 +170,23 @@ impl<T> WisardNetwork<T> for Wisard<T> {
         self.last_rank = 0;
         self.rank_tables = HashMap::new()
     }
+    fn change_hyperparameters(&mut self, number_of_hashtables: u16, addr_length: u16, bleach: u16) {
+        // randomizes the mapping
+        let mut rng_mapping =
+            (0..addr_length as u64 * number_of_hashtables as u64).collect::<Vec<u64>>();
+        rng_mapping.shuffle(&mut thread_rng());
+
+        self.discs = HashMap::new();
+        self.addr_length = addr_length;
+        self.number_of_hashtables = number_of_hashtables;
+        self.mapping = rng_mapping;
+        self.last_rank = 0;
+        self.rank_tables = HashMap::new();
+        self.bleach = bleach;
+    }
+    fn get_info(&self) -> (u16, u16, u16) {
+        return (self.number_of_hashtables, self.addr_length, self.bleach);
+    }
 }
 
 impl<T> Wisard<T> {
@@ -196,31 +213,6 @@ impl<T> Wisard<T> {
             bleach: bleach,
             phantom: PhantomData,
         }
-    }
-
-    pub fn get_info(&self) -> (u16, u16, u16) {
-        return (self.number_of_hashtables, self.addr_length, self.bleach);
-    }
-
-    pub fn erase_and_change_hyperparameters(
-        &mut self,
-        number_of_hashtables: u16,
-        addr_length: u16,
-        bleach: u16,
-    ) {
-        self.erase();
-        // randomizes the mapping
-        let mut rng_mapping =
-            (0..addr_length as u64 * number_of_hashtables as u64).collect::<Vec<u64>>();
-        rng_mapping.shuffle(&mut thread_rng());
-
-        self.discs = HashMap::new();
-        self.addr_length = addr_length;
-        self.number_of_hashtables = number_of_hashtables;
-        self.mapping = rng_mapping;
-        self.last_rank = 0;
-        self.rank_tables = HashMap::new();
-        self.bleach = bleach;
     }
 
     fn ranks_t(&mut self, samples: Vec<&T>) -> Vec<u64>

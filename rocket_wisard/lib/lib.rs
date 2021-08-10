@@ -30,13 +30,13 @@ pub fn new(
 ) {
     wis.lock()
         .unwrap()
-        .erase_and_change_hyperparameters(hashtables, addresses, bleach);
+        .change_hyperparameters(hashtables, addresses, bleach);
 }
 
 #[post("/with_model", format = "multipart", data = "<model>")]
 pub fn with_model(wis: State<Arc<Mutex<wisard::dict_wisard::Wisard<u8>>>>, model: ModelMultipart) {
     let mut unlocked_wis = wis.lock().unwrap();
-    unlocked_wis.erase_and_change_hyperparameters(
+    unlocked_wis.change_hyperparameters(
         model.number_of_hashtables,
         model.addr_length,
         model.bleach,
