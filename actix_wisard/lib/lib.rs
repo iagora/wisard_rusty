@@ -1,5 +1,6 @@
 extern crate wisard;
 
+use wisard::wisard_traits::WisardNetwork;
 // use actix_multipart::Multipart;
 use actix_web::{
     dev::BodyEncoding, dev::Decompress, error, guard, http::ContentEncoding, middleware, web, App,
@@ -12,8 +13,11 @@ use serde::{Deserialize, Serialize};
 use std::sync::RwLock;
 
 #[actix_web::main]
-pub async fn run() -> std::io::Result<()> {
-    let wis = web::Data::new(RwLock::new(wisard::dict_wisard::Wisard::<u8>::new()));
+pub async fn run<K>(wis: Box<dyn WisardNetwork<K> + Send + Sync + 'static>) -> std::io::Result<()>
+where
+    K: PartialOrd + Copy + Send + Sync + 'static,
+{
+    let wis = web::Data::new(RwLock::new(wis));
 
     env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
 
@@ -24,19 +28,19 @@ pub async fn run() -> std::io::Result<()> {
             .wrap(middleware::Logger::new(
                 "%a %t %r %b %{Referer}i %{User-Agent}i %s %T",
             ))
-            .service(web::resource("/new").route(web::post().to(new)))
-            .service(web::resource("/train?{label}>").route(web::post().to(train)))
-            .service(web::resource("/classify").route(web::post().to(classify)))
-            .service(web::resource("/info").route(web::get().to(info)))
+            .service(web::resource("/new").route(web::post().to(new::<K>)))
+            .service(web::resource("/train?{label}>").route(web::post().to(train::<K>)))
+            .service(web::resource("/classify").route(web::post().to(classify::<K>)))
+            .service(web::resource("/info").route(web::get().to(info::<K>)))
             .service(
                 web::resource("/model")
-                    .route(web::get().to(save))
+                    .route(web::get().to(save::<K>))
                     .route(
                         web::post()
                             .guard(guard::Header("content-encoding", "gzip"))
-                            .to(load),
+                            .to(load::<K>),
                     )
-                    .route(web::delete().to(erase)),
+                    .route(web::delete().to(erase::<K>)),
             )
     })
     .bind("127.0.0.1:8080")?
@@ -44,10 +48,13 @@ pub async fn run() -> std::io::Result<()> {
     .await
 }
 
-async fn new(
-    wis: web::Data<RwLock<wisard::dict_wisard::Wisard<u8>>>,
+async fn new<K>(
+    wis: web::Data<RwLock<Box<dyn WisardNetwork<K> + Send + Sync + 'static>>>,
     web::Query(model_info): web::Query<ModelInfo>,
-) -> Result<HttpResponse, Error> {
+) -> Result<HttpResponse, Error>
+where
+    K: PartialOrd + Copy + Send + Sync,
+{
     let mut unlocked_wis = match wis.write() {
         Ok(unlocked_wis) => unlocked_wis,
         Err(error) => {
@@ -64,9 +71,12 @@ async fn new(
     Ok(HttpResponse::Ok().into())
 }
 
-async fn info(
-    wis: web::Data<RwLock<wisard::dict_wisard::Wisard<u8>>>,
-) -> Result<HttpResponse, Error> {
+async fn info<K>(
+    wis: web::Data<RwLock<Box<dyn WisardNetwork<K> + Send + Sync + 'static>>>,
+) -> Result<HttpResponse, Error>
+where
+    K: PartialOrd + Copy + Send + Sync,
+{
     let unlocked_wis = match wis.read() {
         Ok(unlocked_wis) => unlocked_wis,
         Err(error) => {
@@ -83,13 +93,16 @@ async fn info(
     }))
 }
 
-const STREAM_MAX_SIZE: usize = 10_000_000; // 500MB limit
+const STREAM_MAX_SIZE: usize = 10_000_000; // 10MB limit
 
-async fn train(
-    wis: web::Data<RwLock<wisard::dict_wisard::Wisard<u8>>>,
+async fn train<K>(
+    wis: web::Data<RwLock<Box<dyn WisardNetwork<K> + Send + Sync + 'static>>>,
     web::Path(label): web::Path<String>,
     mut payload: web::Payload,
-) -> Result<HttpResponse, Error> {
+) -> Result<HttpResponse, Error>
+where
+    K: PartialOrd + Copy + Send + Sync,
+{
     let mut v = Vec::new();
     while let Some(chunk) = payload.next().await {
         let data = chunk?;
@@ -118,10 +131,13 @@ async fn train(
     }
 }
 
-async fn classify(
-    wis: web::Data<RwLock<wisard::dict_wisard::Wisard<u8>>>,
+async fn classify<K>(
+    wis: web::Data<RwLock<Box<dyn WisardNetwork<K> + Send + Sync + 'static>>>,
     mut payload: web::Payload,
-) -> Result<HttpResponse, Error> {
+) -> Result<HttpResponse, Error>
+where
+    K: PartialOrd + Copy + Send + Sync,
+{
     let mut v = Vec::new();
     while let Some(chunk) = payload.next().await {
         let data = chunk?;
@@ -151,9 +167,12 @@ async fn classify(
     }
 }
 
-async fn save(
-    wis: web::Data<RwLock<wisard::dict_wisard::Wisard<u8>>>,
-) -> Result<HttpResponse, Error> {
+async fn save<K>(
+    wis: web::Data<RwLock<Box<dyn WisardNetwork<K> + Send + Sync + 'static>>>,
+) -> Result<HttpResponse, Error>
+where
+    K: PartialOrd + Copy + Send + Sync,
+{
     let unlocked_wis = match wis.read() {
         Ok(unlocked_wis) => unlocked_wis,
         Err(error) => {
@@ -178,10 +197,13 @@ async fn save(
 
 const WEIGHT_MAX_SIZE: usize = 500_000_000; // 500MB limit
 
-async fn load(
-    wis: web::Data<RwLock<wisard::dict_wisard::Wisard<u8>>>,
+async fn load<K>(
+    wis: web::Data<RwLock<Box<dyn WisardNetwork<K> + Send + Sync + 'static>>>,
     mut payload: web::Payload,
-) -> Result<HttpResponse, Error> {
+) -> Result<HttpResponse, Error>
+where
+    K: PartialOrd + Copy + Send + Sync,
+{
     let mut decoder = Decompress::new(&mut payload, ContentEncoding::Gzip);
     let mut v = Vec::new();
     while let Some(chunk) = decoder.next().await {
@@ -212,9 +234,12 @@ async fn load(
     }
 }
 
-async fn erase(
-    wis: web::Data<RwLock<wisard::dict_wisard::Wisard<u8>>>,
-) -> Result<HttpResponse, Error> {
+async fn erase<K>(
+    wis: web::Data<RwLock<Box<dyn WisardNetwork<K> + Send + Sync + 'static>>>,
+) -> Result<HttpResponse, Error>
+where
+    K: PartialOrd + Copy + Send + Sync,
+{
     let mut unlocked_wis = match wis.write() {
         Ok(unlocked_wis) => unlocked_wis,
         Err(error) => {

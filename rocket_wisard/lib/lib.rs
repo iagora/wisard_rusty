@@ -3,6 +3,8 @@
 extern crate rocket;
 extern crate wisard;
 
+use wisard::wisard_traits::WisardNetwork;
+
 use rocket::response::Stream;
 use rocket::State;
 use std::io::Cursor;

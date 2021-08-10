@@ -5,6 +5,7 @@ use std::fs::File;
 use std::process;
 use std::time::Instant;
 use wisard::dict_wisard;
+use wisard::wisard_traits::WisardNetwork;
 
 fn main() {
     let config = Config::new(env::args()).unwrap_or_else(|err| {

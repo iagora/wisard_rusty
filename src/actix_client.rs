@@ -6,7 +6,7 @@ use std::time::Instant;
 
 #[async_std::main]
 async fn main() -> surf::Result<()> {
-    println!("\n-----------------\nTesting\n-----------------");
+    println!("-----------------\nTesting\n-----------------");
     let now = Instant::now();
     let label_data =
         &mnist::MnistData::new(&(File::open("data/mnist/t10k-labels-idx1-ubyte.gz"))?)?;

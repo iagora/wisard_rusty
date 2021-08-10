@@ -1,4 +1,3 @@
-use crate::errors::WisardError;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
@@ -6,6 +5,9 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::marker::PhantomData;
 use std::path::Path;
+
+use crate::errors::WisardError;
+use crate::wisard_traits::WisardNetwork;
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct Discriminator {
@@ -64,10 +66,113 @@ pub struct Wisard<T> {
     phantom: PhantomData<T>,
 }
 
-impl<T> Wisard<T> {
-    pub fn get_info(&self) -> (u16, u16, u16) {
-        return (self.number_of_hashtables, self.addr_length, self.bleach);
+impl<T> WisardNetwork<T> for Wisard<T> {
+    fn train(&mut self, data: Vec<T>, label: String) -> Result<(), WisardError>
+    where
+        T: PartialOrd + Copy + Send + Sync,
+    {
+        if !self.discs.contains_key(&label) {
+            self.discs
+                .insert(label.clone(), Discriminator::new(self.number_of_hashtables));
+        }
+
+        let samples = self.mapping.clone();
+        let samples = samples
+            .iter()
+            .map(|&i| data.get(i as usize))
+            .collect::<Option<Vec<_>>>()
+            .ok_or_else(|| WisardError::WisardOutOfBounds)?;
+        let addresses: Vec<u64> = self.ranks_t(samples);
+        let disc = self.discs.get_mut(&label).unwrap();
+        disc.train(addresses)?;
+        Ok(())
     }
+    fn classify(&self, data: Vec<T>) -> Result<String, WisardError>
+    where
+        T: PartialOrd + Copy + Send + Sync,
+    {
+        let samples = self.mapping.clone();
+        let samples = samples
+            .iter()
+            .map(|&i| data.get(i as usize))
+            .collect::<Option<Vec<_>>>()
+            .ok_or_else(|| WisardError::WisardOutOfBounds)?;
+        let addresses: Vec<u64> = self.ranks_c(samples);
+        let discs = &self.discs;
+        let mut votes: Vec<(String, (u64, u64))> = discs
+            .iter()
+            .map(|d| (d.0.to_string(), d.1.classify(&addresses, self.bleach)))
+            .collect();
+        votes.sort_by(|a, b| (a.1).0.partial_cmp(&(b.1).0).unwrap());
+
+        let biggest = votes
+            .iter()
+            .last()
+            .ok_or_else(|| WisardError::WisardOutOfBounds)?;
+
+        Ok(
+            biggest.0.clone(), // elected label
+        )
+    }
+    fn save(&self) -> Result<Vec<u8>, WisardError> {
+        let encoded: Vec<u8> = match bincode::serialize(&self) {
+            Ok(enc) => enc,
+            Err(_) => return Err(WisardError::WisardValidationFailed),
+        };
+        Ok(encoded)
+    }
+    fn load(&mut self, stream: &[u8]) -> Result<(), WisardError> {
+        let decoded: Wisard<T> = match bincode::deserialize(stream) {
+            Ok(res) => res,
+            Err(_) => return Err(WisardError::WisardValidationFailed),
+        };
+        self.discs = decoded.discs;
+        self.addr_length = decoded.addr_length;
+        self.number_of_hashtables = decoded.number_of_hashtables;
+        self.mapping = decoded.mapping;
+        self.last_rank = decoded.last_rank;
+        self.rank_tables = decoded.rank_tables;
+        self.bleach = decoded.bleach;
+        Ok(())
+    }
+    fn save_to_file(&self, path: &Path) -> Result<(), WisardError> {
+        let mut file = match File::create(path) {
+            Ok(f) => f,
+            Err(_) => return Err(WisardError::WisardIOError),
+        };
+        match bincode::serialize_into(&mut file, &self) {
+            Ok(_) => Ok(()),
+            Err(_) => return Err(WisardError::WisardValidationFailed),
+        }
+    }
+    fn load_from_file(&mut self, path: &Path) -> Result<(), WisardError> {
+        let file = match File::open(path) {
+            Ok(f) => f,
+            Err(_) => return Err(WisardError::WisardIOError),
+        };
+        let decoded: Wisard<T> = match bincode::deserialize_from(file) {
+            Ok(d) => d,
+            Err(_) => return Err(WisardError::WisardValidationFailed),
+        };
+        self.discs = decoded.discs;
+        self.addr_length = decoded.addr_length;
+        self.number_of_hashtables = decoded.number_of_hashtables;
+        self.mapping = decoded.mapping;
+        self.last_rank = decoded.last_rank;
+        self.rank_tables = decoded.rank_tables;
+        self.bleach = decoded.bleach;
+        Ok(())
+    }
+
+    fn erase(&mut self) {
+        self.mapping.shuffle(&mut thread_rng());
+        self.discs = HashMap::new();
+        self.last_rank = 0;
+        self.rank_tables = HashMap::new()
+    }
+}
+
+impl<T> Wisard<T> {
     pub fn new() -> Self
     where
         T: PartialOrd + Copy + Send + Sync,
@@ -91,6 +196,10 @@ impl<T> Wisard<T> {
             bleach: bleach,
             phantom: PhantomData,
         }
+    }
+
+    pub fn get_info(&self) -> (u16, u16, u16) {
+        return (self.number_of_hashtables, self.addr_length, self.bleach);
     }
 
     pub fn erase_and_change_hyperparameters(
@@ -172,110 +281,6 @@ impl<T> Wisard<T> {
             vetor.clear();
         }
         addresses
-    }
-
-    pub fn train(&mut self, data: Vec<T>, label: String) -> Result<(), WisardError>
-    where
-        T: PartialOrd + Copy + Send + Sync,
-    {
-        if !self.discs.contains_key(&label) {
-            self.discs
-                .insert(label.clone(), Discriminator::new(self.number_of_hashtables));
-        }
-
-        let samples = self.mapping.clone();
-        let samples = samples
-            .iter()
-            .map(|&i| data.get(i as usize))
-            .collect::<Option<Vec<_>>>()
-            .ok_or_else(|| WisardError::WisardOutOfBounds)?;
-        let addresses: Vec<u64> = self.ranks_t(samples);
-        let disc = self.discs.get_mut(&label).unwrap();
-        disc.train(addresses)?;
-        Ok(())
-    }
-
-    pub fn classify(&self, data: Vec<T>) -> Result<String, WisardError>
-    where
-        T: PartialOrd + Copy + Send + Sync,
-    {
-        let samples = self.mapping.clone();
-        let samples = samples
-            .iter()
-            .map(|&i| data.get(i as usize))
-            .collect::<Option<Vec<_>>>()
-            .ok_or_else(|| WisardError::WisardOutOfBounds)?;
-        let addresses: Vec<u64> = self.ranks_c(samples);
-        let discs = &self.discs;
-        let mut votes: Vec<(String, (u64, u64))> = discs
-            .iter()
-            .map(|d| (d.0.to_string(), d.1.classify(&addresses, self.bleach)))
-            .collect();
-        votes.sort_by(|a, b| (a.1).0.partial_cmp(&(b.1).0).unwrap());
-
-        let biggest = votes
-            .iter()
-            .last()
-            .ok_or_else(|| WisardError::WisardOutOfBounds)?;
-
-        Ok(
-            biggest.0.clone(), // elected label
-        )
-    }
-    pub fn save(&self) -> Result<Vec<u8>, WisardError> {
-        let encoded: Vec<u8> = match bincode::serialize(&self) {
-            Ok(enc) => enc,
-            Err(_) => return Err(WisardError::WisardValidationFailed),
-        };
-        Ok(encoded)
-    }
-    pub fn load(&mut self, stream: &[u8]) -> Result<(), WisardError> {
-        let decoded: Wisard<T> = match bincode::deserialize(stream) {
-            Ok(res) => res,
-            Err(_) => return Err(WisardError::WisardValidationFailed),
-        };
-        self.discs = decoded.discs;
-        self.addr_length = decoded.addr_length;
-        self.number_of_hashtables = decoded.number_of_hashtables;
-        self.mapping = decoded.mapping;
-        self.last_rank = decoded.last_rank;
-        self.rank_tables = decoded.rank_tables;
-        self.bleach = decoded.bleach;
-        Ok(())
-    }
-    pub fn save_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), WisardError> {
-        let mut file = match File::create(path) {
-            Ok(f) => f,
-            Err(_) => return Err(WisardError::WisardIOError),
-        };
-        match bincode::serialize_into(&mut file, &self) {
-            Ok(_) => Ok(()),
-            Err(_) => return Err(WisardError::WisardValidationFailed),
-        }
-    }
-    pub fn load_from_file<P: AsRef<Path>>(&mut self, path: P) -> Result<(), WisardError> {
-        let file = match File::open(path) {
-            Ok(f) => f,
-            Err(_) => return Err(WisardError::WisardIOError),
-        };
-        let decoded: Wisard<T> = match bincode::deserialize_from(file) {
-            Ok(d) => d,
-            Err(_) => return Err(WisardError::WisardValidationFailed),
-        };
-        self.discs = decoded.discs;
-        self.addr_length = decoded.addr_length;
-        self.number_of_hashtables = decoded.number_of_hashtables;
-        self.mapping = decoded.mapping;
-        self.last_rank = decoded.last_rank;
-        self.rank_tables = decoded.rank_tables;
-        self.bleach = decoded.bleach;
-        Ok(())
-    }
-    pub fn erase(&mut self) {
-        self.mapping.shuffle(&mut thread_rng());
-        self.discs = HashMap::new();
-        self.last_rank = 0;
-        self.rank_tables = HashMap::new()
     }
 }
 
@@ -369,10 +374,13 @@ mod lib_tests {
         ];
         let _ = wis.ranks_t(samples.iter().collect());
 
-        wis.save_to_file("weights/weigths_u8.bin").unwrap();
+        wis.save_to_file(Path::new("weights/weigths_u8.bin"))
+            .unwrap();
 
         let mut decoded = Wisard::new();
-        decoded.load_from_file("weights/weigths_u8.bin").unwrap();
+        decoded
+            .load_from_file(Path::new("weights/weigths_u8.bin"))
+            .unwrap();
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
             107, 73, 168, 95, 63, 11, 2, 49, 130, 43, 92, 110, 13, 157, 125, 6, 93, 119, 86, 85,
