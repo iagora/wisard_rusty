@@ -135,35 +135,6 @@ impl<T> WisardNetwork<T> for Wisard<T> {
         self.bleach = decoded.bleach;
         Ok(())
     }
-    fn save_to_file(&self, path: &Path) -> Result<(), WisardError> {
-        let mut file = match File::create(path) {
-            Ok(f) => f,
-            Err(_) => return Err(WisardError::WisardIOError),
-        };
-        match bincode::serialize_into(&mut file, &self) {
-            Ok(_) => Ok(()),
-            Err(_) => return Err(WisardError::WisardValidationFailed),
-        }
-    }
-    fn load_from_file(&mut self, path: &Path) -> Result<(), WisardError> {
-        let file = match File::open(path) {
-            Ok(f) => f,
-            Err(_) => return Err(WisardError::WisardIOError),
-        };
-        let decoded: Wisard<T> = match bincode::deserialize_from(file) {
-            Ok(d) => d,
-            Err(_) => return Err(WisardError::WisardValidationFailed),
-        };
-        self.discs = decoded.discs;
-        self.addr_length = decoded.addr_length;
-        self.number_of_hashtables = decoded.number_of_hashtables;
-        self.mapping = decoded.mapping;
-        self.last_rank = decoded.last_rank;
-        self.rank_tables = decoded.rank_tables;
-        self.bleach = decoded.bleach;
-        Ok(())
-    }
-
     fn erase(&mut self) {
         self.mapping.shuffle(&mut thread_rng());
         self.discs = HashMap::new();
@@ -273,6 +244,34 @@ impl<T> Wisard<T> {
             vetor.clear();
         }
         addresses
+    }
+    pub fn save_to_file(&self, path: &Path) -> Result<(), WisardError> {
+        let mut file = match File::create(path) {
+            Ok(f) => f,
+            Err(_) => return Err(WisardError::WisardIOError),
+        };
+        match bincode::serialize_into(&mut file, &self) {
+            Ok(_) => Ok(()),
+            Err(_) => return Err(WisardError::WisardValidationFailed),
+        }
+    }
+    pub fn load_from_file(&mut self, path: &Path) -> Result<(), WisardError> {
+        let file = match File::open(path) {
+            Ok(f) => f,
+            Err(_) => return Err(WisardError::WisardIOError),
+        };
+        let decoded: Wisard<T> = match bincode::deserialize_from(file) {
+            Ok(d) => d,
+            Err(_) => return Err(WisardError::WisardValidationFailed),
+        };
+        self.discs = decoded.discs;
+        self.addr_length = decoded.addr_length;
+        self.number_of_hashtables = decoded.number_of_hashtables;
+        self.mapping = decoded.mapping;
+        self.last_rank = decoded.last_rank;
+        self.rank_tables = decoded.rank_tables;
+        self.bleach = decoded.bleach;
+        Ok(())
     }
 }
 

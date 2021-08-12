@@ -1,5 +1,4 @@
 use crate::error::WisardError;
-use std::path::Path;
 
 pub trait WisardNetwork<T> {
     // fn new() -> Self
@@ -15,7 +14,5 @@ pub trait WisardNetwork<T> {
         T: PartialOrd + Copy + Send + Sync;
     fn save(&self) -> Result<Vec<u8>, WisardError>;
     fn load(&mut self, stream: &[u8]) -> Result<(), WisardError>;
-    fn save_to_file(&self, path: &Path) -> Result<(), WisardError>;
-    fn load_from_file(&mut self, path: &Path) -> Result<(), WisardError>;
     fn erase(&mut self);
 }

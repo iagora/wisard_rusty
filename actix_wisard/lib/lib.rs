@@ -13,8 +13,9 @@ use serde::{Deserialize, Serialize};
 use std::sync::RwLock;
 
 #[actix_web::main]
-pub async fn run<K>(wis: Box<dyn WisardNetwork<K> + Send + Sync + 'static>) -> std::io::Result<()>
+pub async fn run<T, K>(wis: T) -> std::io::Result<()>
 where
+    T: WisardNetwork<K> + Send + Sync + 'static,
     K: PartialOrd + Copy + Send + Sync + From<u8> + 'static,
 {
     let wis = web::Data::new(RwLock::new(wis));
@@ -28,19 +29,19 @@ where
             .wrap(middleware::Logger::new(
                 "%a %t %r %b %{Referer}i %{User-Agent}i %s %T",
             ))
-            .service(web::resource("/new").route(web::post().to(new::<K>)))
-            .service(web::resource("/train?{label}>").route(web::post().to(train::<K>)))
-            .service(web::resource("/classify").route(web::post().to(classify::<K>)))
-            .service(web::resource("/info").route(web::get().to(info::<K>)))
+            .service(web::resource("/new").route(web::post().to(new::<T, K>)))
+            .service(web::resource("/train?{label}>").route(web::post().to(train::<T, K>)))
+            .service(web::resource("/classify").route(web::post().to(classify::<T, K>)))
+            .service(web::resource("/info").route(web::get().to(info::<T, K>)))
             .service(
                 web::resource("/model")
-                    .route(web::get().to(save::<K>))
+                    .route(web::get().to(save::<T, K>))
                     .route(
                         web::post()
                             .guard(guard::Header("content-encoding", "gzip"))
-                            .to(load::<K>),
+                            .to(load::<T, K>),
                     )
-                    .route(web::delete().to(erase::<K>)),
+                    .route(web::delete().to(erase::<T, K>)),
             )
     })
     .bind("127.0.0.1:8080")?
@@ -48,11 +49,12 @@ where
     .await
 }
 
-async fn new<K>(
-    wis: web::Data<RwLock<Box<dyn WisardNetwork<K> + Send + Sync + 'static>>>,
+async fn new<T, K>(
+    wis: web::Data<RwLock<T>>,
     web::Query(model_info): web::Query<ModelInfo>,
 ) -> Result<HttpResponse, Error>
 where
+    T: WisardNetwork<K> + Send + Sync + 'static,
     K: PartialOrd + Copy + Send + Sync,
 {
     let mut unlocked_wis = match wis.write() {
@@ -71,10 +73,9 @@ where
     Ok(HttpResponse::Ok().into())
 }
 
-async fn info<K>(
-    wis: web::Data<RwLock<Box<dyn WisardNetwork<K> + Send + Sync + 'static>>>,
-) -> Result<HttpResponse, Error>
+async fn info<T, K>(wis: web::Data<RwLock<T>>) -> Result<HttpResponse, Error>
 where
+    T: WisardNetwork<K> + Send + Sync + 'static,
     K: PartialOrd + Copy + Send + Sync,
 {
     let unlocked_wis = match wis.read() {
@@ -95,12 +96,13 @@ where
 
 const STREAM_MAX_SIZE: usize = 10_000_000; // 10MB limit
 
-async fn train<K>(
-    wis: web::Data<RwLock<Box<dyn WisardNetwork<K> + Send + Sync + 'static>>>,
+async fn train<T, K>(
+    wis: web::Data<RwLock<T>>,
     web::Path(label): web::Path<String>,
     mut payload: web::Payload,
 ) -> Result<HttpResponse, Error>
 where
+    T: WisardNetwork<K> + Send + Sync + 'static,
     K: PartialOrd + Copy + Send + Sync + From<u8>,
 {
     let mut v = Vec::new();
@@ -131,11 +133,12 @@ where
     }
 }
 
-async fn classify<K>(
-    wis: web::Data<RwLock<Box<dyn WisardNetwork<K> + Send + Sync + 'static>>>,
+async fn classify<T, K>(
+    wis: web::Data<RwLock<T>>,
     mut payload: web::Payload,
 ) -> Result<HttpResponse, Error>
 where
+    T: WisardNetwork<K> + Send + Sync + 'static,
     K: PartialOrd + Copy + Send + Sync + From<u8>,
 {
     let mut v = Vec::new();
@@ -167,10 +170,9 @@ where
     }
 }
 
-async fn save<K>(
-    wis: web::Data<RwLock<Box<dyn WisardNetwork<K> + Send + Sync + 'static>>>,
-) -> Result<HttpResponse, Error>
+async fn save<T, K>(wis: web::Data<RwLock<T>>) -> Result<HttpResponse, Error>
 where
+    T: WisardNetwork<K> + Send + Sync + 'static,
     K: PartialOrd + Copy + Send + Sync,
 {
     let unlocked_wis = match wis.read() {
@@ -197,11 +199,12 @@ where
 
 const WEIGHT_MAX_SIZE: usize = 500_000_000; // 500MB limit
 
-async fn load<K>(
-    wis: web::Data<RwLock<Box<dyn WisardNetwork<K> + Send + Sync + 'static>>>,
+async fn load<T, K>(
+    wis: web::Data<RwLock<T>>,
     mut payload: web::Payload,
 ) -> Result<HttpResponse, Error>
 where
+    T: WisardNetwork<K> + Send + Sync + 'static,
     K: PartialOrd + Copy + Send + Sync,
 {
     let mut decoder = Decompress::new(&mut payload, ContentEncoding::Gzip);
@@ -234,10 +237,9 @@ where
     }
 }
 
-async fn erase<K>(
-    wis: web::Data<RwLock<Box<dyn WisardNetwork<K> + Send + Sync + 'static>>>,
-) -> Result<HttpResponse, Error>
+async fn erase<T, K>(wis: web::Data<RwLock<T>>) -> Result<HttpResponse, Error>
 where
+    T: WisardNetwork<K> + Send + Sync + 'static,
     K: PartialOrd + Copy + Send + Sync,
 {
     let mut unlocked_wis = match wis.write() {
