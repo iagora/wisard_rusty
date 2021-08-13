@@ -4,8 +4,14 @@ pub trait WisardNetwork<T> {
     // fn new() -> Self
     // where
     //     T: PartialOrd + Copy + Send + Sync;
-    fn get_info(&self) -> (u16, u16, u16);
-    fn change_hyperparameters(&mut self, number_of_hashtables: u16, addr_length: u16, bleach: u16);
+    fn get_info(&self) -> (u16, u16, u16, Vec<u64>);
+    fn change_hyperparameters(
+        &mut self,
+        number_of_hashtables: u16,
+        addr_length: u16,
+        bleach: u16,
+        mapping: Option<Vec<u64>>,
+    );
     fn train(&mut self, data: Vec<T>, label: String) -> Result<(), WisardError>
     where
         T: PartialOrd + Copy + Send + Sync;

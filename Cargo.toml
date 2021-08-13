@@ -6,32 +6,15 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [[bin]]
-name = "rocket_wisard_test"
-path = "src/rocket_test.rs"
-
-[[bin]]
-name = "dict_wisard_test"
-path = "src/dict_test.rs"
-
-[[bin]]
 name = "actix_wisard_test"
 path = "src/actix_test.rs"
 
-[[bin]]
-name = "actix_client_test"
-path = "src/actix_client.rs"
-
-[lib]
-name = "dataloaders"
-path = "lib/dataloaders.rs"
-
 [workspace]
-members = ["wisard", "rocket_wisard", "actix_wisard"]
+members = ["wisard", "actix_wisard"]
 
 [dependencies]
 async-std = { version = "1.9.0", features = ["attributes"] }
 actix-wisard = { path = "actix_wisard" }
-rocket-wisard = { path = "rocket_wisard" }
 wisard = { path = "wisard" }
 flate2 = "1.0.20"
 byteorder = "1.4.3"

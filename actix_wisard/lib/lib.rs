@@ -51,7 +51,7 @@ where
 
 async fn new<T, K>(
     wis: web::Data<RwLock<T>>,
-    web::Query(model_info): web::Query<ModelInfo>,
+    web::Query(model_info): web::Query<ModelInfoRequest>,
 ) -> Result<HttpResponse, Error>
 where
     T: WisardNetwork<K> + Send + Sync + 'static,
@@ -69,6 +69,7 @@ where
         model_info.hashtables,
         model_info.addresses,
         model_info.bleach,
+        model_info.mapping,
     );
     Ok(HttpResponse::Ok().into())
 }
@@ -86,11 +87,12 @@ where
             )))
         }
     };
-    let (hashtables, addresses, bleach) = unlocked_wis.get_info();
-    Ok(HttpResponse::Ok().json(ModelInfo {
+    let (hashtables, addresses, bleach, mapping) = unlocked_wis.get_info();
+    Ok(HttpResponse::Ok().json(ModelInfoResponse {
         hashtables: hashtables,
         addresses: addresses,
         bleach: bleach,
+        mapping: mapping,
     }))
 }
 
@@ -114,6 +116,16 @@ where
         }
         v.write_all(&data).await?;
     }
+
+    let img = match image::load_from_memory(&v) {
+        Ok(img) => img,
+        Err(error) => {
+            return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
+                format!("Failed to get image: {}", error),
+            )))
+        }
+    };
+
     let mut unlocked_wis = match wis.write() {
         Ok(unlocked_wis) => unlocked_wis,
         Err(error) => {
@@ -123,7 +135,14 @@ where
         }
     };
 
-    match unlocked_wis.train(v.iter().map(|x| K::from(*x)).collect(), label) {
+    match unlocked_wis.train(
+        img.grayscale()
+            .as_bytes()
+            .iter()
+            .map(|x| K::from(*x))
+            .collect(),
+        label,
+    ) {
         Ok(_) => return Ok(HttpResponse::Ok().into()),
         Err(error) => {
             return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
@@ -151,6 +170,15 @@ where
         v.write_all(&data).await?;
     }
 
+    let img = match image::load_from_memory(&v) {
+        Ok(img) => img,
+        Err(error) => {
+            return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
+                format!("Failed to get image: {}", error),
+            )))
+        }
+    };
+
     let unlocked_wis = match wis.read() {
         Ok(unlocked_wis) => unlocked_wis,
         Err(error) => {
@@ -160,7 +188,13 @@ where
         }
     };
 
-    match unlocked_wis.classify(v.iter().map(|x| K::from(*x)).collect()) {
+    match unlocked_wis.classify(
+        img.grayscale()
+            .as_bytes()
+            .iter()
+            .map(|x| K::from(*x))
+            .collect(),
+    ) {
         Ok(label) => return Ok(HttpResponse::Ok().json(ClassifyResponse { label: label })),
         Err(error) => {
             return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
@@ -255,11 +289,31 @@ where
     Ok(HttpResponse::Ok().into())
 }
 
-#[derive(Default, Debug, Deserialize, Serialize)]
-struct ModelInfo {
+#[derive(Debug, Deserialize, Serialize)]
+struct ModelInfoRequest {
     hashtables: u16,
     addresses: u16,
     bleach: u16,
+    mapping: Option<Vec<u64>>,
+}
+
+impl Default for ModelInfoRequest {
+    fn default() -> Self {
+        ModelInfoRequest {
+            hashtables: 35,
+            addresses: 21,
+            bleach: 0,
+            mapping: None,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct ModelInfoResponse {
+    hashtables: u16,
+    addresses: u16,
+    bleach: u16,
+    mapping: Vec<u64>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

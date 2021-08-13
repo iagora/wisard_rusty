@@ -141,22 +141,38 @@ impl<T> WisardNetwork<T> for Wisard<T> {
         self.last_rank = 0;
         self.rank_tables = HashMap::new()
     }
-    fn change_hyperparameters(&mut self, number_of_hashtables: u16, addr_length: u16, bleach: u16) {
+    fn change_hyperparameters(
+        &mut self,
+        number_of_hashtables: u16,
+        addr_length: u16,
+        bleach: u16,
+        mapping: Option<Vec<u64>>,
+    ) {
         // randomizes the mapping
-        let mut rng_mapping =
-            (0..addr_length as u64 * number_of_hashtables as u64).collect::<Vec<u64>>();
-        rng_mapping.shuffle(&mut thread_rng());
-
+        let mapping = match mapping {
+            Some(map) => map,
+            None => {
+                let mut rng_mapping =
+                    (0..addr_length as u64 * number_of_hashtables as u64).collect::<Vec<u64>>();
+                rng_mapping.shuffle(&mut thread_rng());
+                rng_mapping
+            }
+        };
         self.discs = HashMap::new();
         self.addr_length = addr_length;
         self.number_of_hashtables = number_of_hashtables;
-        self.mapping = rng_mapping;
+        self.mapping = mapping;
         self.last_rank = 0;
         self.rank_tables = HashMap::new();
         self.bleach = bleach;
     }
-    fn get_info(&self) -> (u16, u16, u16) {
-        return (self.number_of_hashtables, self.addr_length, self.bleach);
+    fn get_info(&self) -> (u16, u16, u16, Vec<u64>) {
+        return (
+            self.number_of_hashtables,
+            self.addr_length,
+            self.bleach,
+            self.mapping.clone(),
+        );
     }
 }
 
@@ -165,20 +181,31 @@ impl<T> Wisard<T> {
     where
         T: PartialOrd + Copy + Send + Sync,
     {
-        Wisard::with_params(28, 28, 0)
+        Wisard::with_params(35, 21, 0, None)
     }
 
-    pub fn with_params(number_of_hashtables: u16, addr_length: u16, bleach: u16) -> Self {
+    pub fn with_params(
+        number_of_hashtables: u16,
+        addr_length: u16,
+        bleach: u16,
+        mapping: Option<Vec<u64>>,
+    ) -> Self {
         // randomizes the mapping
-        let mut rng_mapping =
-            (0..addr_length as u64 * number_of_hashtables as u64).collect::<Vec<u64>>();
-        rng_mapping.shuffle(&mut thread_rng());
+        let mapping = match mapping {
+            Some(map) => map,
+            None => {
+                let mut rng_mapping =
+                    (0..addr_length as u64 * number_of_hashtables as u64).collect::<Vec<u64>>();
+                rng_mapping.shuffle(&mut thread_rng());
+                rng_mapping
+            }
+        };
 
         Wisard::<T> {
             discs: HashMap::new(),
             addr_length: addr_length,
             number_of_hashtables: number_of_hashtables,
-            mapping: rng_mapping,
+            mapping: mapping,
             last_rank: 0,
             rank_tables: HashMap::new(),
             bleach: bleach,
