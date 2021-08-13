@@ -9,6 +9,7 @@ use actix_web::{
 use async_std::prelude::*;
 use env_logger::Env;
 use futures::StreamExt; //, TryStreamExt};
+use image::imageops;
 use serde::{Deserialize, Serialize};
 use std::sync::RwLock;
 
@@ -20,11 +21,14 @@ where
 {
     let wis = web::Data::new(RwLock::new(wis));
 
+    let target_size: web::Data<RwLock<(u32, u32)>> = web::Data::new(RwLock::new((64, 64)));
+
     env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
 
     HttpServer::new(move || {
         App::new()
             .app_data(wis.clone())
+            .app_data(target_size.clone())
             .wrap(middleware::Compress::default())
             .wrap(middleware::Logger::new(
                 "%a %t %r %b %{Referer}i %{User-Agent}i %s %T",
@@ -51,7 +55,8 @@ where
 
 async fn new<T, K>(
     wis: web::Data<RwLock<T>>,
-    web::Query(model_info): web::Query<ModelInfoRequest>,
+    target_size: web::Data<RwLock<(u32, u32)>>,
+    web::Json(model_info): web::Json<ModelInfoRequest>,
 ) -> Result<HttpResponse, Error>
 where
     T: WisardNetwork<K> + Send + Sync + 'static,
@@ -65,6 +70,29 @@ where
             )))
         }
     };
+    let mut unlocked_target_size = match target_size.write() {
+        Ok(u) => u,
+        Err(error) => {
+            return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
+                format!("Failed to get lock on target_size: {}", error),
+            )))
+        }
+    };
+    let temp_target_size = match model_info.target_size {
+        Some(t) => t,
+        None => (64, 64),
+    };
+
+    if (model_info.hashtables as u32 * model_info.addresses as u32)
+        > (temp_target_size.0 * temp_target_size.1)
+    {
+        return Ok(HttpResponse::from_error(error::ErrorBadRequest(format!(
+            "The image dimensions can't be smaller than the sampling range"
+        ))));
+    }
+
+    *unlocked_target_size = temp_target_size;
+
     unlocked_wis.change_hyperparameters(
         model_info.hashtables,
         model_info.addresses,
@@ -74,7 +102,10 @@ where
     Ok(HttpResponse::Ok().into())
 }
 
-async fn info<T, K>(wis: web::Data<RwLock<T>>) -> Result<HttpResponse, Error>
+async fn info<T, K>(
+    wis: web::Data<RwLock<T>>,
+    target_size: web::Data<RwLock<(u32, u32)>>,
+) -> Result<HttpResponse, Error>
 where
     T: WisardNetwork<K> + Send + Sync + 'static,
     K: PartialOrd + Copy + Send + Sync,
@@ -87,11 +118,22 @@ where
             )))
         }
     };
+
+    let unlocked_target_size = match target_size.read() {
+        Ok(t) => t,
+        Err(error) => {
+            return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
+                format!("Failed to get lock on cache: {}", error),
+            )))
+        }
+    };
+
     let (hashtables, addresses, bleach, mapping) = unlocked_wis.get_info();
     Ok(HttpResponse::Ok().json(ModelInfoResponse {
         hashtables: hashtables,
         addresses: addresses,
         bleach: bleach,
+        target_size: *unlocked_target_size,
         mapping: mapping,
     }))
 }
@@ -100,6 +142,7 @@ const STREAM_MAX_SIZE: usize = 10_000_000; // 10MB limit
 
 async fn train<T, K>(
     wis: web::Data<RwLock<T>>,
+    target_size: web::Data<RwLock<(u32, u32)>>,
     web::Path(label): web::Path<String>,
     mut payload: web::Payload,
 ) -> Result<HttpResponse, Error>
@@ -135,8 +178,22 @@ where
         }
     };
 
+    let unlocked_target_size = match target_size.read() {
+        Ok(t) => t,
+        Err(error) => {
+            return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
+                format!("Failed to get lock on cache: {}", error),
+            )))
+        }
+    };
+
     match unlocked_wis.train(
         img.grayscale()
+            .resize_exact(
+                unlocked_target_size.0,
+                unlocked_target_size.1,
+                imageops::Nearest,
+            )
             .as_bytes()
             .iter()
             .map(|x| K::from(*x))
@@ -154,6 +211,7 @@ where
 
 async fn classify<T, K>(
     wis: web::Data<RwLock<T>>,
+    target_size: web::Data<RwLock<(u32, u32)>>,
     mut payload: web::Payload,
 ) -> Result<HttpResponse, Error>
 where
@@ -188,8 +246,22 @@ where
         }
     };
 
+    let unlocked_target_size = match target_size.read() {
+        Ok(t) => t,
+        Err(error) => {
+            return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
+                format!("Failed to get lock on cache: {}", error),
+            )))
+        }
+    };
+
     match unlocked_wis.classify(
         img.grayscale()
+            .resize_exact(
+                unlocked_target_size.0,
+                unlocked_target_size.1,
+                imageops::Nearest,
+            )
             .as_bytes()
             .iter()
             .map(|x| K::from(*x))
@@ -294,6 +366,7 @@ struct ModelInfoRequest {
     hashtables: u16,
     addresses: u16,
     bleach: u16,
+    target_size: Option<(u32, u32)>,
     mapping: Option<Vec<u64>>,
 }
 
@@ -303,6 +376,7 @@ impl Default for ModelInfoRequest {
             hashtables: 35,
             addresses: 21,
             bleach: 0,
+            target_size: None,
             mapping: None,
         }
     }
@@ -313,6 +387,7 @@ struct ModelInfoResponse {
     hashtables: u16,
     addresses: u16,
     bleach: u16,
+    target_size: (u32, u32),
     mapping: Vec<u64>,
 }
 

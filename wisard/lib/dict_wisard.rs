@@ -158,6 +158,7 @@ impl<T> WisardNetwork<T> for Wisard<T> {
                 rng_mapping
             }
         };
+
         self.discs = HashMap::new();
         self.addr_length = addr_length;
         self.number_of_hashtables = number_of_hashtables;
