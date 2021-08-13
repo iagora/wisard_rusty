@@ -1,0 +1,7 @@
+/target
+/data
+/.cargo
+/profiling
+/weights
+/.git
+/.devcontainer
