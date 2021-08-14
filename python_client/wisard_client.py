@@ -70,7 +70,7 @@ for (img, label) in zip(test_images, test_labels):
         hit = hit + 1
     count = count + 1
 
-print("Testing took: {:.4f} milliseconds".format(1000 *
+print("Testing took: {:.0f} milliseconds".format(1000 *
                                                  (time.time() - start_time)))
 
-print("Accuracy: ".format(hit / count))
+print("Accuracy: {:.4f}".format(hit / count))
