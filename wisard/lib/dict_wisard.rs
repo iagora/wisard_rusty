@@ -63,6 +63,7 @@ pub struct Wisard<T> {
     last_rank: u64,
     rank_tables: HashMap<Vec<u64>, u64>,
     bleach: u16,
+    pub target_size: (u32, u32),
     phantom: PhantomData<T>,
 }
 
@@ -132,13 +133,18 @@ impl<T> WisardNetwork<T> for Wisard<T> {
         self.mapping = decoded.mapping;
         self.last_rank = decoded.last_rank;
         self.rank_tables = decoded.rank_tables;
+        self.target_size = decoded.target_size;
         self.bleach = decoded.bleach;
         Ok(())
     }
     fn erase(&mut self) {
+        self.number_of_hashtables = 35;
+        self.addr_length = 21;
+        self.bleach = 0;
         self.mapping.shuffle(&mut thread_rng());
         self.discs = HashMap::new();
         self.last_rank = 0;
+        self.target_size = (28, 28);
         self.rank_tables = HashMap::new()
     }
     fn change_hyperparameters(
@@ -146,6 +152,7 @@ impl<T> WisardNetwork<T> for Wisard<T> {
         number_of_hashtables: u16,
         addr_length: u16,
         bleach: u16,
+        target_size: Option<(u32, u32)>,
         mapping: Option<Vec<u64>>,
     ) {
         // randomizes the mapping
@@ -158,6 +165,10 @@ impl<T> WisardNetwork<T> for Wisard<T> {
                 rng_mapping
             }
         };
+        let target_size = match target_size {
+            Some(t) => t,
+            None => (28, 28),
+        };
 
         self.discs = HashMap::new();
         self.addr_length = addr_length;
@@ -165,15 +176,20 @@ impl<T> WisardNetwork<T> for Wisard<T> {
         self.mapping = mapping;
         self.last_rank = 0;
         self.rank_tables = HashMap::new();
+        self.target_size = target_size;
         self.bleach = bleach;
     }
-    fn get_info(&self) -> (u16, u16, u16, Vec<u64>) {
+    fn get_info(&self) -> (u16, u16, u16, (u32, u32), Vec<u64>) {
         return (
             self.number_of_hashtables,
             self.addr_length,
             self.bleach,
+            self.target_size,
             self.mapping.clone(),
         );
+    }
+    fn target_size(&self) -> (u32, u32) {
+        return self.target_size;
     }
 }
 
@@ -182,13 +198,14 @@ impl<T> Wisard<T> {
     where
         T: PartialOrd + Copy + Send + Sync,
     {
-        Wisard::with_params(35, 21, 0, None)
+        Wisard::with_params(35, 21, 0, None, None)
     }
 
     pub fn with_params(
         number_of_hashtables: u16,
         addr_length: u16,
         bleach: u16,
+        target_size: Option<(u32, u32)>,
         mapping: Option<Vec<u64>>,
     ) -> Self {
         // randomizes the mapping
@@ -202,6 +219,11 @@ impl<T> Wisard<T> {
             }
         };
 
+        let target_size = match target_size {
+            Some(t) => t,
+            None => (28, 28),
+        };
+
         Wisard::<T> {
             discs: HashMap::new(),
             addr_length: addr_length,
@@ -210,6 +232,7 @@ impl<T> Wisard<T> {
             last_rank: 0,
             rank_tables: HashMap::new(),
             bleach: bleach,
+            target_size: target_size,
             phantom: PhantomData,
         }
     }
