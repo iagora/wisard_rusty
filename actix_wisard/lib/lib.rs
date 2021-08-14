@@ -62,7 +62,7 @@ where
         Ok(unlocked_wis) => unlocked_wis,
         Err(error) => {
             return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
-                format!("Failed to get lock on cache: {}", error),
+                format!("Failed to get lock on wisard: {}", error),
             )))
         }
     };
@@ -76,7 +76,7 @@ where
     ) {
         Ok(_) => Ok(HttpResponse::Ok().into()),
         Err(error) => Ok(HttpResponse::from_error(error::ErrorInternalServerError(
-            format!("Failed to get lock on cache: {}", error),
+            format!("Wisard parameter validation error: {}", error),
         ))),
     }
 }
@@ -90,7 +90,7 @@ where
         Ok(unlocked_wis) => unlocked_wis,
         Err(error) => {
             return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
-                format!("Failed to get lock on cache: {}", error),
+                format!("Failed to get lock on wisard: {}", error),
             )))
         }
     };
@@ -139,7 +139,7 @@ where
         Ok(unlocked_wis) => unlocked_wis,
         Err(error) => {
             return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
-                format!("Failed to get lock on cache: {}", error),
+                format!("Failed to get lock on wisard: {}", error),
             )))
         }
     };
@@ -195,7 +195,7 @@ where
         Ok(unlocked_wis) => unlocked_wis,
         Err(error) => {
             return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
-                format!("Failed to get lock on cache: {}", error),
+                format!("Failed to get lock on wisard: {}", error),
             )))
         }
     };
@@ -228,7 +228,7 @@ where
         Ok(unlocked_wis) => unlocked_wis,
         Err(error) => {
             return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
-                format!("Failed to get lock on cache: {}", error),
+                format!("Failed to get lock on wisard: {}", error),
             )))
         }
     };
@@ -271,7 +271,7 @@ where
         Ok(unlocked_wis) => unlocked_wis,
         Err(error) => {
             return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
-                format!("Failed to get lock on cache: {}", error),
+                format!("Failed to get lock on wisard: {}", error),
             )))
         }
     };
@@ -280,7 +280,7 @@ where
         Ok(_) => return Ok(HttpResponse::Ok().into()),
         Err(error) => {
             return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
-                format!("Wisard internal error: {}", error),
+                format!("Wisard found an error while loading: {}", error),
             )))
         }
     }
@@ -295,7 +295,7 @@ where
         Ok(unlocked_wis) => unlocked_wis,
         Err(error) => {
             return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
-                format!("Failed to get lock on cache: {}", error),
+                format!("Failed to get lock on wisard: {}", error),
             )))
         }
     };
