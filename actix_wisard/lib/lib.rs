@@ -67,40 +67,18 @@ where
         }
     };
 
-    let temp_target_size = match model_info.target_size {
-        Some(t) => t,
-        None => (64, 64),
-    };
-
-    if (model_info.hashtables as u32 * model_info.addresses as u32)
-        > (temp_target_size.0 * temp_target_size.1)
-    {
-        return Ok(HttpResponse::from_error(error::ErrorBadRequest(format!(
-            "The image resize dimensions can't be smaller than the sampling range"
-        ))));
-    }
-
-    if let Some(map) = &model_info.mapping {
-        if (model_info.hashtables as usize * model_info.addresses as usize) > map.len() {
-            return Ok(HttpResponse::from_error(error::ErrorBadRequest(format!(
-                "The mapping size must be bigger than (number_of_hashtables * addresses_length)"
-            ))));
-        }
-        if (temp_target_size.0 as usize * temp_target_size.1 as usize) < map.len() {
-            return Ok(HttpResponse::from_error(error::ErrorBadRequest(format!(
-                "The image resize dimensions can't be smaller than the mapping"
-            ))));
-        }
-    }
-
-    unlocked_wis.change_hyperparameters(
+    match unlocked_wis.change_hyperparameters(
         model_info.hashtables,
         model_info.addresses,
         model_info.bleach,
         model_info.target_size,
         model_info.mapping,
-    );
-    Ok(HttpResponse::Ok().into())
+    ) {
+        Ok(_) => Ok(HttpResponse::Ok().into()),
+        Err(error) => Ok(HttpResponse::from_error(error::ErrorInternalServerError(
+            format!("Failed to get lock on cache: {}", error),
+        ))),
+    }
 }
 
 async fn info<T, K>(wis: web::Data<RwLock<T>>) -> Result<HttpResponse, Error>

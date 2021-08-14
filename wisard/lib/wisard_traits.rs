@@ -12,7 +12,7 @@ pub trait WisardNetwork<T> {
         bleach: u16,
         target_size: Option<(u32, u32)>,
         mapping: Option<Vec<u64>>,
-    );
+    ) -> Result<(), WisardError>;
     fn target_size(&self) -> (u32, u32);
     fn train(&mut self, data: Vec<T>, label: String) -> Result<(), WisardError>
     where

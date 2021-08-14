@@ -118,14 +118,22 @@ impl<T> WisardNetwork<T> for Wisard<T> {
     fn save(&self) -> Result<Vec<u8>, WisardError> {
         let encoded: Vec<u8> = match bincode::serialize(&self) {
             Ok(enc) => enc,
-            Err(_) => return Err(WisardError::WisardValidationFailed),
+            Err(_) => {
+                return Err(WisardError::WisardValidationFailed(String::from(
+                    "Could not serialize wisard!",
+                )))
+            }
         };
         Ok(encoded)
     }
     fn load(&mut self, stream: &[u8]) -> Result<(), WisardError> {
         let decoded: Wisard<T> = match bincode::deserialize(stream) {
             Ok(res) => res,
-            Err(_) => return Err(WisardError::WisardValidationFailed),
+            Err(_) => {
+                return Err(WisardError::WisardValidationFailed(String::from(
+                    "Could not deserialize with bincode!",
+                )))
+            }
         };
         self.discs = decoded.discs;
         self.addr_length = decoded.addr_length;
@@ -154,7 +162,7 @@ impl<T> WisardNetwork<T> for Wisard<T> {
         bleach: u16,
         target_size: Option<(u32, u32)>,
         mapping: Option<Vec<u64>>,
-    ) {
+    ) -> Result<(), WisardError> {
         // randomizes the mapping
         let mapping = match mapping {
             Some(map) => map,
@@ -170,6 +178,23 @@ impl<T> WisardNetwork<T> for Wisard<T> {
             None => (28, 28),
         };
 
+        if (number_of_hashtables as u32 * addr_length as u32) > (target_size.0 * target_size.1) {
+            return Err(WisardError::WisardValidationFailed(String::from(
+                "The image resize dimensions can't be smaller than the sampling range",
+            )));
+        }
+
+        if (number_of_hashtables as usize * addr_length as usize) > mapping.len() {
+            return Err(WisardError::WisardValidationFailed(String::from(
+                "The mapping size must be bigger than (number_of_hashtables * addresses_length)",
+            )));
+        }
+        if (target_size.0 as usize * target_size.1 as usize) < mapping.len() {
+            return Err(WisardError::WisardValidationFailed(String::from(
+                "The image resize dimensions can't be smaller than the mapping",
+            )));
+        }
+
         self.discs = HashMap::new();
         self.addr_length = addr_length;
         self.number_of_hashtables = number_of_hashtables;
@@ -178,6 +203,8 @@ impl<T> WisardNetwork<T> for Wisard<T> {
         self.rank_tables = HashMap::new();
         self.target_size = target_size;
         self.bleach = bleach;
+
+        return Ok(());
     }
     fn get_info(&self) -> (u16, u16, u16, (u32, u32), Vec<u64>) {
         return (
@@ -198,7 +225,7 @@ impl<T> Wisard<T> {
     where
         T: PartialOrd + Copy + Send + Sync,
     {
-        Wisard::with_params(35, 21, 0, None, None)
+        Wisard::with_params(35, 21, 0, None, None).unwrap()
     }
 
     pub fn with_params(
@@ -207,7 +234,7 @@ impl<T> Wisard<T> {
         bleach: u16,
         target_size: Option<(u32, u32)>,
         mapping: Option<Vec<u64>>,
-    ) -> Self {
+    ) -> Result<Self, WisardError> {
         // randomizes the mapping
         let mapping = match mapping {
             Some(map) => map,
@@ -224,7 +251,24 @@ impl<T> Wisard<T> {
             None => (28, 28),
         };
 
-        Wisard::<T> {
+        if (number_of_hashtables as u32 * addr_length as u32) > (target_size.0 * target_size.1) {
+            return Err(WisardError::WisardValidationFailed(String::from(
+                "The image resize dimensions can't be smaller than the sampling range",
+            )));
+        }
+
+        if (number_of_hashtables as usize * addr_length as usize) > mapping.len() {
+            return Err(WisardError::WisardValidationFailed(String::from(
+                "The mapping size must be bigger than (number_of_hashtables * addresses_length)",
+            )));
+        }
+        if (target_size.0 as usize * target_size.1 as usize) < mapping.len() {
+            return Err(WisardError::WisardValidationFailed(String::from(
+                "The image resize dimensions can't be smaller than the mapping",
+            )));
+        }
+
+        Ok(Wisard::<T> {
             discs: HashMap::new(),
             addr_length: addr_length,
             number_of_hashtables: number_of_hashtables,
@@ -234,7 +278,7 @@ impl<T> Wisard<T> {
             bleach: bleach,
             target_size: target_size,
             phantom: PhantomData,
-        }
+        })
     }
 
     fn ranks_t(&mut self, samples: Vec<&T>) -> Vec<u64>
@@ -303,7 +347,11 @@ impl<T> Wisard<T> {
         };
         match bincode::serialize_into(&mut file, &self) {
             Ok(_) => Ok(()),
-            Err(_) => return Err(WisardError::WisardValidationFailed),
+            Err(_) => {
+                return Err(WisardError::WisardValidationFailed(String::from(
+                    "Couldn't serialize wisard into a file!",
+                )))
+            }
         }
     }
     pub fn load_from_file(&mut self, path: &Path) -> Result<(), WisardError> {
@@ -313,7 +361,11 @@ impl<T> Wisard<T> {
         };
         let decoded: Wisard<T> = match bincode::deserialize_from(file) {
             Ok(d) => d,
-            Err(_) => return Err(WisardError::WisardValidationFailed),
+            Err(_) => {
+                return Err(WisardError::WisardValidationFailed(String::from(
+                    "Could not deserialize the file into a wisard!",
+                )))
+            }
         };
         self.discs = decoded.discs;
         self.addr_length = decoded.addr_length;
