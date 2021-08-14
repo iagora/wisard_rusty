@@ -9,7 +9,6 @@ use actix_web::{
 use async_std::prelude::*;
 use env_logger::Env;
 use futures::StreamExt; //, TryStreamExt};
-use image::imageops;
 use serde::{Deserialize, Serialize};
 use std::sync::RwLock;
 
@@ -126,15 +125,6 @@ where
         v.write_all(&data).await?;
     }
 
-    let img = match image::load_from_memory(&v) {
-        Ok(img) => img,
-        Err(error) => {
-            return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
-                format!("Failed to get image: {}", error),
-            )))
-        }
-    };
-
     let mut unlocked_wis = match wis.write() {
         Ok(unlocked_wis) => unlocked_wis,
         Err(error) => {
@@ -144,17 +134,7 @@ where
         }
     };
 
-    let target_size = unlocked_wis.target_size();
-
-    match unlocked_wis.train(
-        img.grayscale()
-            .resize_exact(target_size.0, target_size.1, imageops::Nearest)
-            .as_bytes()
-            .iter()
-            .map(|x| K::from(*x))
-            .collect(),
-        label_r.label,
-    ) {
+    match unlocked_wis.train(v.iter().map(|x| K::from(*x)).collect(), label_r.label) {
         Ok(_) => return Ok(HttpResponse::Ok().into()),
         Err(error) => {
             return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
@@ -182,15 +162,6 @@ where
         v.write_all(&data).await?;
     }
 
-    let img = match image::load_from_memory(&v) {
-        Ok(img) => img,
-        Err(error) => {
-            return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
-                format!("Failed to get image: {}", error),
-            )))
-        }
-    };
-
     let unlocked_wis = match wis.read() {
         Ok(unlocked_wis) => unlocked_wis,
         Err(error) => {
@@ -200,16 +171,7 @@ where
         }
     };
 
-    let target_size = unlocked_wis.target_size();
-
-    match unlocked_wis.classify(
-        img.grayscale()
-            .resize_exact(target_size.0, target_size.1, imageops::Nearest)
-            .as_bytes()
-            .iter()
-            .map(|x| K::from(*x))
-            .collect(),
-    ) {
+    match unlocked_wis.classify(v.iter().map(|x| K::from(*x)).collect()) {
         Ok(label) => return Ok(HttpResponse::Ok().json(ClassifyResponse { label: label })),
         Err(error) => {
             return Ok(HttpResponse::from_error(error::ErrorInternalServerError(

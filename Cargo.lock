@@ -292,7 +292,6 @@ dependencies = [
  "async-std",
  "env_logger",
  "futures",
- "image",
  "serde",
  "wisard",
 ]
@@ -1822,6 +1821,7 @@ name = "rusty-wisard"
 version = "0.1.0"
 dependencies = [
  "actix-wisard",
+ "image",
  "wisard",
 ]
 

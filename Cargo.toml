@@ -15,3 +15,4 @@ members = ["wisard", "actix_wisard"]
 [dependencies]
 actix-wisard = { path = "actix_wisard" }
 wisard = { path = "wisard" }
+image = "0.23.14"
