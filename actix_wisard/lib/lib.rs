@@ -34,7 +34,7 @@ where
                 "%a %t %r %b %{Referer}i %{User-Agent}i %s %T",
             ))
             .service(web::resource("/new").route(web::post().to(new::<T, K>)))
-            .service(web::resource("/train?{label}>").route(web::post().to(train::<T, K>)))
+            .service(web::resource("/train").route(web::post().to(train::<T, K>)))
             .service(web::resource("/classify").route(web::post().to(classify::<T, K>)))
             .service(web::resource("/info").route(web::get().to(info::<T, K>)))
             .service(
@@ -143,7 +143,7 @@ const STREAM_MAX_SIZE: usize = 10_000_000; // 10MB limit
 async fn train<T, K>(
     wis: web::Data<RwLock<T>>,
     target_size: web::Data<RwLock<(u32, u32)>>,
-    web::Path(label): web::Path<String>,
+    web::Query(label_r): web::Query<ClassifyRequest>,
     mut payload: web::Payload,
 ) -> Result<HttpResponse, Error>
 where
@@ -198,7 +198,7 @@ where
             .iter()
             .map(|x| K::from(*x))
             .collect(),
-        label,
+        label_r.label,
     ) {
         Ok(_) => return Ok(HttpResponse::Ok().into()),
         Err(error) => {
@@ -393,5 +393,10 @@ struct ModelInfoResponse {
 
 #[derive(Debug, Deserialize, Serialize)]
 struct ClassifyResponse {
+    label: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct ClassifyRequest {
     label: String,
 }
