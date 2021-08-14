@@ -4,3 +4,4 @@
 /profiling
 /weights
 /container
+python_client/requests_venv
