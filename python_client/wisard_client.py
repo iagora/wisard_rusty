@@ -50,7 +50,7 @@ for (img, label) in zip(training_images, training_labels):
                       params=query,
                       data=payload)
 print("Training took: {:.0f} milliseconds".format(1000 *
-                                              (time.time() - start_time)))
+                                                  (time.time() - start_time)))
 
 print("-----------------\nTesting\n-----------------")
 start_time = time.time()
@@ -69,10 +69,8 @@ for (img, label) in zip(test_images, test_labels):
     if response['label'] == str(label):
         hit = hit + 1
     count = count + 1
-print("Classified image of a handwritten zero as a {}".format(
-    response['label']))
 
-print("Testing took: {:.0f} milliseconds".format(1000 *
-                                             (time.time() - start_time)))
+print("Testing took: {:.4f} milliseconds".format(1000 *
+                                                 (time.time() - start_time)))
 
 print("Accuracy: ".format(hit / count))
