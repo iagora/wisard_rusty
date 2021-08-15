@@ -6,4 +6,4 @@
 /.git
 /.devcontainer
 /container
-python_client/requests_venv
+/python_client

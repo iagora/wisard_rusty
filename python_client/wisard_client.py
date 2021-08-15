@@ -3,24 +3,8 @@ import time
 
 import httpx
 
+from async_requests import classify_request, train_request
 from mnist import load_mnist
-
-
-async def async_bytes(payload):
-    yield payload
-
-
-async def train_image(client, query, payload):
-    await client.post("http://localhost:8080/train",
-                      params=query,
-                      data=async_bytes(payload))
-
-
-async def classify_image(client, payload):
-    resp = await client.post("http://localhost:8080/classify",
-                             data=async_bytes(payload))
-    r = resp.json()
-    return r['label']
 
 
 async def main():
@@ -49,7 +33,7 @@ async def main():
             payload = bytes(img)
             query = {'label': str(label)}
             tasks.append(
-                asyncio.ensure_future(train_image(client, query, payload)))
+                asyncio.ensure_future(train_request(client, query, payload)))
         await asyncio.gather(*tasks)
     print("Training took: {:.0f} milliseconds".format(
         1000 * (time.time() - start_time)))
@@ -68,8 +52,8 @@ async def main():
         tasks = []
         for img in test_images:
             payload = bytes(img)
-            tasks.append(asyncio.ensure_future(classify_image(client,
-                                                              payload)))
+            tasks.append(
+                asyncio.ensure_future(classify_request(client, payload)))
         responses = await asyncio.gather(*tasks)
         for (response, label) in zip(responses, test_labels):
             if response == str(label):
