@@ -91,7 +91,7 @@ async fn main() -> surf::Result<()> {
     }
     println!("Testing took: {} milliseconds", now.elapsed().as_millis());
 
-    println!("Accuracy: {}", hit as f64 / count as f64);
+    println!("Accuracy: {:.4}", hit as f64 / count as f64);
 
     Ok(())
 }
