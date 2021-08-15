@@ -1,7 +1,6 @@
-use dataloaders::mnist;
+use dataloaders::mnist::load_mnist;
 use http_types::Body;
 use serde::{Deserialize, Serialize};
-use std::fs::File;
 use std::time::Instant;
 
 #[async_std::main]
@@ -17,20 +16,7 @@ async fn main() -> surf::Result<()> {
     println!("\n-----------------\nTraining\n-----------------");
     let now = Instant::now();
 
-    let label_data =
-        &mnist::MnistData::new(&(File::open("data/mnist/train-labels-idx1-ubyte.gz"))?)?;
-    let images_data =
-        &mnist::MnistData::new(&(File::open("data/mnist/train-images-idx3-ubyte.gz"))?)?;
-    let mut images: Vec<Vec<u8>> = Vec::new();
-    let image_shape = (images_data.sizes[1] * images_data.sizes[2]) as usize;
-
-    for i in 0..images_data.sizes[0] as usize {
-        let start = i * image_shape;
-        let image_data = images_data.data[start..start + image_shape].to_vec();
-        images.push(image_data);
-    }
-
-    let classifications: Vec<u8> = label_data.data.clone();
+    let (images, classifications) = load_mnist("data/mnist/", "train")?;
 
     println!("Training data has {} images", classifications.len());
     println!(
@@ -53,19 +39,7 @@ async fn main() -> surf::Result<()> {
 
     println!("-----------------\nTesting\n-----------------");
     let now = Instant::now();
-    let label_data =
-        &mnist::MnistData::new(&(File::open("data/mnist/t10k-labels-idx1-ubyte.gz"))?)?;
-    let images_data =
-        &mnist::MnistData::new(&(File::open("data/mnist/t10k-images-idx3-ubyte.gz"))?)?;
-    let mut images: Vec<Vec<u8>> = Vec::new();
-    let image_shape = (images_data.sizes[1] * images_data.sizes[2]) as usize;
-
-    for i in 0..images_data.sizes[0] as usize {
-        let start = i * image_shape;
-        let image_data = images_data.data[start..start + image_shape].to_vec();
-        images.push(image_data);
-    }
-    let classifications: Vec<u8> = label_data.data.clone();
+    let (images, classifications) = load_mnist("data/mnist/", "t10k")?;
 
     println!("Testing data has {} images", classifications.len());
     println!(

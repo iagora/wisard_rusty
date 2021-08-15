@@ -1,30 +1,10 @@
 import asyncio
-import gzip
-import json
 import time
 from io import BytesIO
 
 import httpx
-import numpy as np
 
-
-def load_mnist(prefix, folder):
-    data_buffer = gzip.open(folder + prefix + '-images-idx3-ubyte.gz')
-    data_buffer = data_buffer.read()
-    int_type = np.dtype('int32').newbyteorder('>')
-    metadata_bytes = 4 * int_type.itemsize
-
-    data = np.frombuffer(data_buffer, dtype='ubyte')
-    magic_bytes, n_images, width, height = np.frombuffer(
-        data[:metadata_bytes].tobytes(), int_type)
-    data = data[metadata_bytes:].astype(dtype='ubyte').reshape(
-        [n_images, width * height])
-
-    label_buffer = gzip.open(folder + prefix + '-labels-idx1-ubyte.gz')
-    label_buffer = label_buffer.read()
-    labels = np.frombuffer(label_buffer, dtype='ubyte')[2 * int_type.itemsize:]
-
-    return data, labels
+from mnist import load_mnist
 
 
 async def async_bytes(payload):
@@ -58,7 +38,7 @@ async def main():
 
     print("\n-----------------\nTraining\n-----------------")
     start_time = time.time()
-    training_images, training_labels = load_mnist("train", "data/mnist/")
+    training_images, training_labels = load_mnist("data/mnist/", "train")
     print("Training data has {} images".format(len(training_labels)))
     print("Parsing the training dataset took: {:.0f} milliseconds".format(
         1000 * (time.time() - start_time)))
@@ -77,7 +57,7 @@ async def main():
 
     print("-----------------\nTesting\n-----------------")
     start_time = time.time()
-    test_images, test_labels = load_mnist("t10k", "data/mnist/")
+    test_images, test_labels = load_mnist("data/mnist/", "t10k")
     print("Testing data has {} images".format(len(test_labels)))
     print("Parsing the test dataset took: {:.0f} milliseconds".format(
         1000 * (time.time() - start_time)))
