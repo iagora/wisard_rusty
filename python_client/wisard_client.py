@@ -1,6 +1,5 @@
 import asyncio
 import time
-from io import BytesIO
 
 import httpx
 
