@@ -6,7 +6,7 @@ use std::time::Instant;
 
 #[async_std::main]
 async fn main() -> surf::Result<()> {
-    println!("Rusty WiSARD - MNIST 🦀🦀🦀");
+    println!("Rusty WiSARD Client - MNIST 🦀🦀🦀");
 
     let wis_info: ModelInfoResponse = surf::get("http://localhost:8080/info").recv_json().await?;
 

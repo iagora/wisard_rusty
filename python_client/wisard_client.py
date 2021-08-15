@@ -46,7 +46,7 @@ async def classify_image(client, payload):
 
 async def main():
 
-    print("Pythonesque WiSARD - MNIST 🐍🐍🐍")
+    print("Pythonesque WiSARD Client - MNIST 🐍🐍🐍")
     async with httpx.AsyncClient() as client:
         # Get info
         r = await client.get("http://localhost:8080/info")

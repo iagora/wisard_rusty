@@ -7,11 +7,11 @@ edition = "2018"
 
 [[bin]]
 name = "actix_wisard_server"
-path = "src/actix_server.rs"
+path = "src/wisard_server.rs"
 
 [[bin]]
 name = "actix_wisard_client"
-path = "src/actix_client.rs"
+path = "src/wisard_client.rs"
 
 [lib]
 name = "dataloaders"
