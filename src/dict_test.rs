@@ -34,20 +34,7 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
     println!("\n-----------------\nTraining\n-----------------");
     let now = Instant::now();
 
-    let label_data =
-        &mnist::MnistData::new(&(File::open("data/mnist/train-labels-idx1-ubyte.gz"))?)?;
-    let images_data =
-        &mnist::MnistData::new(&(File::open("data/mnist/train-images-idx3-ubyte.gz"))?)?;
-    let mut images: Vec<Vec<u8>> = Vec::new();
-    let image_shape = (images_data.sizes[1] * images_data.sizes[2]) as usize;
-
-    for i in 0..images_data.sizes[0] as usize {
-        let start = i * image_shape;
-        let image_data = images_data.data[start..start + image_shape].to_vec();
-        images.push(image_data);
-    }
-
-    let classifications: Vec<u8> = label_data.data.clone();
+    let (images, classifications) = load_mnist("data/mnist/", "train")?;
 
     println!("Training data has {} images", classifications.len());
     println!(
@@ -63,19 +50,8 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
 
     println!("\n-----------------\nTesting\n-----------------");
     let now = Instant::now();
-    let label_data =
-        &mnist::MnistData::new(&(File::open("data/mnist/t10k-labels-idx1-ubyte.gz"))?)?;
-    let images_data =
-        &mnist::MnistData::new(&(File::open("data/mnist/t10k-images-idx3-ubyte.gz"))?)?;
-    let mut images: Vec<Vec<u8>> = Vec::new();
-    let image_shape = (images_data.sizes[1] * images_data.sizes[2]) as usize;
 
-    for i in 0..images_data.sizes[0] as usize {
-        let start = i * image_shape;
-        let image_data = images_data.data[start..start + image_shape].to_vec();
-        images.push(image_data);
-    }
-    let classifications: Vec<u8> = label_data.data.clone();
+    let (images, classifications) = load_mnist("data/mnist/", "t10k")?;
 
     println!("Testing data has {} images", classifications.len());
     println!(
