@@ -6,12 +6,12 @@ use actix_web::{
     dev::BodyEncoding, dev::Decompress, error, guard, http::ContentEncoding, middleware, web, App,
     Error, HttpResponse, HttpServer,
 };
-use async_std::prelude::*;
 use env_logger::Env;
 use futures::StreamExt; //, TryStreamExt};
-use image::imageops;
+use log::info;
 use serde::{Deserialize, Serialize};
 use std::sync::RwLock;
+use tokio::{self, io::AsyncWriteExt, time::interval, time::Duration};
 
 #[actix_web::main]
 pub async fn run<T, K>(wis: T) -> std::io::Result<()>
@@ -20,6 +20,15 @@ where
     K: PartialOrd + Copy + Send + Sync + From<u8> + 'static,
 {
     let wis = web::Data::new(RwLock::new(wis));
+
+    tokio::spawn(async move {
+        let mut interval = interval(Duration::from_secs(60));
+        loop {
+            interval.tick().await;
+            // do something
+            info!("saving wis.");
+        }
+    });
 
     env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
 
@@ -126,15 +135,6 @@ where
         v.write_all(&data).await?;
     }
 
-    let img = match image::load_from_memory(&v) {
-        Ok(img) => img,
-        Err(error) => {
-            return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
-                format!("Failed to get image: {}", error),
-            )))
-        }
-    };
-
     let mut unlocked_wis = match wis.write() {
         Ok(unlocked_wis) => unlocked_wis,
         Err(error) => {
@@ -144,17 +144,7 @@ where
         }
     };
 
-    let target_size = unlocked_wis.target_size();
-
-    match unlocked_wis.train(
-        img.grayscale()
-            .resize_exact(target_size.0, target_size.1, imageops::Nearest)
-            .as_bytes()
-            .iter()
-            .map(|x| K::from(*x))
-            .collect(),
-        label_r.label,
-    ) {
+    match unlocked_wis.train(v.iter().map(|x| K::from(*x)).collect(), label_r.label) {
         Ok(_) => return Ok(HttpResponse::Ok().into()),
         Err(error) => {
             return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
@@ -182,15 +172,6 @@ where
         v.write_all(&data).await?;
     }
 
-    let img = match image::load_from_memory(&v) {
-        Ok(img) => img,
-        Err(error) => {
-            return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
-                format!("Failed to get image: {}", error),
-            )))
-        }
-    };
-
     let unlocked_wis = match wis.read() {
         Ok(unlocked_wis) => unlocked_wis,
         Err(error) => {
@@ -200,16 +181,7 @@ where
         }
     };
 
-    let target_size = unlocked_wis.target_size();
-
-    match unlocked_wis.classify(
-        img.grayscale()
-            .resize_exact(target_size.0, target_size.1, imageops::Nearest)
-            .as_bytes()
-            .iter()
-            .map(|x| K::from(*x))
-            .collect(),
-    ) {
+    match unlocked_wis.classify(v.iter().map(|x| K::from(*x)).collect()) {
         Ok(label) => return Ok(HttpResponse::Ok().json(ClassifyResponse { label: label })),
         Err(error) => {
             return Ok(HttpResponse::from_error(error::ErrorInternalServerError(

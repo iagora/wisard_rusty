@@ -4,3 +4,5 @@
 /profiling
 /weights
 /container
+/python_client/requests_venv
+/python_client/__pycache__
