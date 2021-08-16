@@ -6,11 +6,11 @@ use actix_web::{
     dev::BodyEncoding, dev::Decompress, error, guard, http::ContentEncoding, middleware, web, App,
     Error, HttpResponse, HttpServer,
 };
-use async_std::prelude::*;
 use env_logger::Env;
 use futures::StreamExt; //, TryStreamExt};
 use serde::{Deserialize, Serialize};
 use std::sync::RwLock;
+use tokio::io::AsyncWriteExt;
 
 #[actix_web::main]
 pub async fn run<T, K>(wis: T) -> std::io::Result<()>
