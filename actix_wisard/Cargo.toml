@@ -17,5 +17,7 @@ futures = "0.3.16"
 image = "0.23.14"
 log = "0.4.14"
 serde = { version = "1.0.126", features = ["derive"] }
-tokio = { version = "0.2.25", features = ["full"] }    # THIS STAYS THIS WAY
+tokio = { version = "0.2.25", features = [
+    "full",
+] } # THIS STAYS IN THIS VERSION AS LONG AS ACTIX-WEB DEPENDS ON IT
 wisard = { path = "../wisard" }
