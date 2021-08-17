@@ -26,7 +26,7 @@ where
         loop {
             interval.tick().await;
             // do something
-            info!("saving wis.");
+            info!("Saving WiSARD.");
         }
     });
 
