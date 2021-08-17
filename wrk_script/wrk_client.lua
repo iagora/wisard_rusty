@@ -1,5 +1,5 @@
 local zlib = require "zlib"
-local struct = require 'struct'
+local struct = require "struct"
 
 function load_mnist(folder, prefix)
     data_file = io.open(folder .. prefix .. '-images-idx3-ubyte.gz', "rb")
