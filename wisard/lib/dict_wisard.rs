@@ -63,7 +63,7 @@ pub struct Wisard<T> {
     last_rank: u64,
     rank_tables: HashMap<Vec<u64>, u64>,
     bleach: u16,
-    pub target_size: (u32, u32),
+    target_size: (u32, u32),
     phantom: PhantomData<T>,
 }
 
