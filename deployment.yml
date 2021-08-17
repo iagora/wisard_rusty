@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wisard-federated-deployment
+spec:
+  selector:
+    matchLabels:
+      app: wisard-federated
+  template:
+    metadata:
+      labels:
+        app: wisard-federated
+    spec:
+      containers:
+        - name: private-reg-container
+          image: iagora/wisard:federated #insert image
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "1"
+            limits:
+              memory: "2Gi"
+              cpu: "2"
+          ports:
+            - containerPort: 8080
+      imagePullSecrets:
+        - name: regcred
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wisard-federated-svc
+  labels:
+    app: wisard-federated
+spec:
+  selector:
+    app: wisard-federated
+  ports:
+    - port: 80
+      targetPort: 8080
+      name: api
