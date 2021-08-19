@@ -1,8 +1,12 @@
+use flate2::read::GzDecoder;
+use flate2::write::GzEncoder;
+use flate2::Compression;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::File;
+use std::io::{Read, Write};
 use std::marker::PhantomData;
 use std::path::Path;
 
@@ -63,7 +67,7 @@ pub struct Wisard<T> {
     last_rank: u64,
     rank_tables: HashMap<Vec<u64>, u64>,
     bleach: u16,
-    pub target_size: (u32, u32),
+    target_size: (u32, u32),
     phantom: PhantomData<T>,
 }
 
@@ -116,33 +120,65 @@ impl<T> WisardNetwork<T> for Wisard<T> {
         )
     }
     fn save(&self) -> Result<Vec<u8>, WisardError> {
-        let encoded: Vec<u8> = match bincode::serialize(&self) {
-            Ok(enc) => enc,
-            Err(_) => {
-                return Err(WisardError::WisardValidationFailed(String::from(
-                    "Could not serialize wisard!",
-                )))
+        let serialized: Vec<u8> = match bincode::serialize(&self) {
+            Ok(s) => s,
+            Err(e) => {
+                return Err(WisardError::WisardValidationFailed(String::from(format!(
+                    "Bincode could not serialize WiSARD: {}",
+                    e
+                ))))
             }
         };
+
+        let mut gz = GzEncoder::new(Vec::new(), Compression::fast());
+        if let Err(e) = gz.write_all(&serialized) {
+            return Err(WisardError::WisardValidationFailed(String::from(format!(
+                "GzEncoder could not encode serialized WiSARD: {}",
+                e
+            ))));
+        };
+        let encoded = match gz.finish() {
+            Ok(s) => s,
+            Err(e) => {
+                return Err(WisardError::WisardValidationFailed(String::from(format!(
+                    "GzEncoder could not encode serialized WiSARD: {}",
+                    e
+                ))))
+            }
+        };
+
         Ok(encoded)
     }
     fn load(&mut self, stream: &[u8]) -> Result<(), WisardError> {
-        let decoded: Wisard<T> = match bincode::deserialize(stream) {
-            Ok(res) => res,
-            Err(_) => {
-                return Err(WisardError::WisardValidationFailed(String::from(
-                    "Could not deserialize with bincode!",
-                )))
+        let mut gz = GzDecoder::new(stream);
+        let mut decoded = Vec::new();
+        match gz.read_to_end(&mut decoded) {
+            Ok(_) => (),
+            Err(e) => {
+                return Err(WisardError::WisardValidationFailed(String::from(format!(
+                    "Could not decode with GzDecoder: {}",
+                    e
+                ))))
             }
         };
-        self.discs = decoded.discs;
-        self.addr_length = decoded.addr_length;
-        self.number_of_hashtables = decoded.number_of_hashtables;
-        self.mapping = decoded.mapping;
-        self.last_rank = decoded.last_rank;
-        self.rank_tables = decoded.rank_tables;
-        self.target_size = decoded.target_size;
-        self.bleach = decoded.bleach;
+
+        let deserialized: Wisard<T> = match bincode::deserialize(&decoded) {
+            Ok(res) => res,
+            Err(e) => {
+                return Err(WisardError::WisardValidationFailed(String::from(format!(
+                    "Could not deserialize with bincode: {}",
+                    e
+                ))))
+            }
+        };
+        self.discs = deserialized.discs;
+        self.addr_length = deserialized.addr_length;
+        self.number_of_hashtables = deserialized.number_of_hashtables;
+        self.mapping = deserialized.mapping;
+        self.last_rank = deserialized.last_rank;
+        self.rank_tables = deserialized.rank_tables;
+        self.target_size = deserialized.target_size;
+        self.bleach = deserialized.bleach;
         Ok(())
     }
     fn erase(&mut self) {
@@ -345,35 +381,32 @@ impl<T> Wisard<T> {
             Ok(f) => f,
             Err(_) => return Err(WisardError::WisardIOError),
         };
-        match bincode::serialize_into(&mut file, &self) {
+
+        let encoded = self.save()?;
+
+        match file.write_all(&encoded) {
             Ok(_) => Ok(()),
             Err(_) => {
                 return Err(WisardError::WisardValidationFailed(String::from(
-                    "Couldn't serialize wisard into a file!",
+                    "Couldn't serialize WiSARD into a file!",
                 )))
             }
         }
     }
     pub fn load_from_file(&mut self, path: &Path) -> Result<(), WisardError> {
-        let file = match File::open(path) {
+        let mut file = match File::open(path) {
             Ok(f) => f,
             Err(_) => return Err(WisardError::WisardIOError),
         };
-        let decoded: Wisard<T> = match bincode::deserialize_from(file) {
-            Ok(d) => d,
-            Err(_) => {
-                return Err(WisardError::WisardValidationFailed(String::from(
-                    "Could not deserialize the file into a wisard!",
-                )))
-            }
+
+        let mut encoded = Vec::new();
+        match file.read_to_end(&mut encoded) {
+            Ok(_) => (),
+            Err(_) => return Err(WisardError::WisardIOError),
         };
-        self.discs = decoded.discs;
-        self.addr_length = decoded.addr_length;
-        self.number_of_hashtables = decoded.number_of_hashtables;
-        self.mapping = decoded.mapping;
-        self.last_rank = decoded.last_rank;
-        self.rank_tables = decoded.rank_tables;
-        self.bleach = decoded.bleach;
+
+        self.load(&encoded)?;
+
         Ok(())
     }
 }
@@ -430,7 +463,7 @@ mod lib_tests {
             177, 161, 134, 98, 30, 190, 47,
         ];
         let addresses = wis.ranks_t(samples.iter().collect());
-        assert_eq!(addresses, vec![0, 1, 2]);
+        assert_eq!(addresses, vec![0, 1, 2, 3]);
     }
     #[test]
     fn test_lib_rank_different_addresses() {
@@ -442,16 +475,15 @@ mod lib_tests {
             103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
             177, 161, 134, 98, 30, 190, 47,
         ];
-        let addresses = wis.ranks_t(samples.iter().collect());
-        assert_eq!(addresses, vec![0, 1, 2]);
+        let addresses1 = wis.ranks_t(samples.iter().collect());
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
             107, 73, 168, 95, 63, 11, 2, 49, 130, 43, 92, 110, 13, 157, 125, 6, 93, 119, 86, 85,
             103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
             177, 161, 134, 98, 30, 190, 205,
         ];
-        let addresses = wis.ranks_t(samples.iter().collect());
-        assert_eq!(addresses, vec![0, 1, 3]);
+        let addresses2 = wis.ranks_t(samples.iter().collect());
+        assert_ne!(addresses1, addresses2);
     }
 
     #[test]
@@ -466,14 +498,14 @@ mod lib_tests {
             103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
             177, 161, 134, 98, 30, 190, 47,
         ];
-        let _ = wis.ranks_t(samples.iter().collect());
+        let addresses1 = wis.ranks_t(samples.iter().collect());
 
-        wis.save_to_file(Path::new("weights/weigths_u8.bin"))
+        wis.save_to_file(Path::new("weights/weigths_u8.bin.gz"))
             .unwrap();
 
         let mut decoded = Wisard::new();
         decoded
-            .load_from_file(Path::new("weights/weigths_u8.bin"))
+            .load_from_file(Path::new("weights/weigths_u8.bin.gz"))
             .unwrap();
         let samples = vec![
             52, 70, 64, 199, 7, 133, 5, 194, 16, 104, 41, 147, 42, 77, 188, 140, 148, 160, 6, 87,
@@ -481,14 +513,12 @@ mod lib_tests {
             103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
             177, 161, 134, 98, 30, 190, 205,
         ];
-        let decoded_addresses = decoded.ranks_t(samples.iter().collect());
+        let addresses2 = decoded.ranks_t(samples.iter().collect());
 
-        println!("{:?}", decoded_addresses);
-
-        fs::remove_file("weights/weigths_u8.bin").unwrap();
+        fs::remove_file("weights/weigths_u8.bin.gz").unwrap();
         fs::remove_dir_all("weights/").unwrap();
 
-        assert_eq!(vec![0, 1, 3], decoded_addresses);
+        assert_ne!(addresses1, addresses2);
     }
 
     #[test]
@@ -500,7 +530,7 @@ mod lib_tests {
             103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
             177, 161, 134, 98, 30, 190, 47,
         ];
-        let _ = wis.ranks_t(samples.iter().collect());
+        let addresses1 = wis.ranks_t(samples.iter().collect());
 
         wis.erase();
 
@@ -510,8 +540,8 @@ mod lib_tests {
             103, 27, 124, 65, 9, 195, 21, 130, 192, 32, 136, 34, 70, 89, 84, 167, 175, 148, 116,
             177, 161, 134, 98, 30, 190, 205,
         ];
-        let decoded_addresses = wis.ranks_t(samples.iter().collect());
+        let addresses2 = wis.ranks_t(samples.iter().collect());
 
-        assert_eq!(vec![0, 1, 2], decoded_addresses);
+        assert_eq!(addresses1, addresses2);
     }
 }

@@ -3014,6 +3014,7 @@ name = "wisard"
 version = "0.1.0"
 dependencies = [
  "bincode",
+ "flate2",
  "rand 0.8.4",
  "rayon",
  "serde",

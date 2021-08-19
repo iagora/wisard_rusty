@@ -3,8 +3,8 @@ extern crate wisard;
 use wisard::wisard_traits::WisardNetwork;
 // use actix_multipart::Multipart;
 use actix_web::{
-    dev::BodyEncoding, dev::Decompress, error, guard, http::ContentEncoding, middleware, web, App,
-    Error, HttpResponse, HttpServer,
+    dev::BodyEncoding, error, guard, http::ContentEncoding, middleware, web, App, Error,
+    HttpResponse, HttpServer,
 };
 use env_logger::Env;
 use futures::StreamExt; //, TryStreamExt};
@@ -189,23 +189,26 @@ where
     let unlocked_wis = match wis.read() {
         Ok(unlocked_wis) => unlocked_wis,
         Err(error) => {
-            return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
-                format!("Failed to get lock on wisard: {}", error),
+            return Err(error::ErrorInternalServerError(format!(
+                "Failed to get lock on WiSARD: {}",
+                error
             )))
         }
     };
-    let encoded = match unlocked_wis.save() {
-        Ok(e) => e,
+    let serialized = match unlocked_wis.save() {
+        Ok(s) => s,
         Err(error) => {
-            return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
-                format!("Wisard found an error while saving: {}", error),
+            return Err(error::ErrorInternalServerError(format!(
+                "WiSARD found an error while saving: {}",
+                error
             )))
         }
     };
 
     Ok(HttpResponse::Ok()
-        .encoding(ContentEncoding::Gzip)
-        .body(encoded))
+        .encoding(ContentEncoding::Identity)
+        .header("content-encoding", "gzip")
+        .body(serialized))
 }
 
 const WEIGHT_MAX_SIZE: usize = 500_000_000; // 500MB limit
@@ -218,9 +221,8 @@ where
     T: WisardNetwork<K> + Send + Sync + 'static,
     K: PartialOrd + Copy + Send + Sync,
 {
-    let mut decoder = Decompress::new(&mut payload, ContentEncoding::Gzip);
     let mut v = Vec::new();
-    while let Some(chunk) = decoder.next().await {
+    while let Some(chunk) = payload.next().await {
         let data = chunk?;
         // limit max size of in-memory payload
         if (v.len() + data.len()) > WEIGHT_MAX_SIZE {
@@ -232,8 +234,9 @@ where
     let mut unlocked_wis = match wis.write() {
         Ok(unlocked_wis) => unlocked_wis,
         Err(error) => {
-            return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
-                format!("Failed to get lock on wisard: {}", error),
+            return Err(error::ErrorInternalServerError(format!(
+                "Failed to get lock on WiSARD: {}",
+                error
             )))
         }
     };
@@ -241,8 +244,9 @@ where
     match unlocked_wis.load(&v) {
         Ok(_) => return Ok(HttpResponse::Ok().into()),
         Err(error) => {
-            return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
-                format!("Wisard found an error while loading: {}", error),
+            return Err(error::ErrorInternalServerError(format!(
+                "WiSARD found an error while loading: {}",
+                error
             )))
         }
     }

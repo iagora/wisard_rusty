@@ -3,6 +3,8 @@
 /.cargo
 /profiling
 /weights
+/wisard/weights
 /container
 python_client/requests_venv
 python_client/__pycache__
+/benchmark/locust/locust_venv
