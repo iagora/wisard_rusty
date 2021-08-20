@@ -4,6 +4,6 @@
 /profiling
 /weights
 /container
-/benchmark/locust_venv
 /python_client/requests_venv
 /python_client/__pycache__
+/benchmark/locust/locust_venv
