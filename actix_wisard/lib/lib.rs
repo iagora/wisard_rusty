@@ -8,6 +8,7 @@ use actix_web::{
 };
 use env_logger::Env;
 use futures::StreamExt; //, TryStreamExt};
+use image::imageops;
 use log::info;
 use serde::{Deserialize, Serialize};
 use std::sync::RwLock;
@@ -71,7 +72,7 @@ where
         Ok(unlocked_wis) => unlocked_wis,
         Err(error) => {
             return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
-                format!("Failed to get lock on wisard: {}", error),
+                format!("Failed to get lock on WiSARD: {}", error),
             )))
         }
     };
@@ -99,7 +100,7 @@ where
         Ok(unlocked_wis) => unlocked_wis,
         Err(error) => {
             return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
-                format!("Failed to get lock on wisard: {}", error),
+                format!("Failed to get lock on WiSARD: {}", error),
             )))
         }
     };
@@ -135,16 +136,35 @@ where
         v.write_all(&data).await?;
     }
 
-    let mut unlocked_wis = match wis.write() {
-        Ok(unlocked_wis) => unlocked_wis,
+    let img = match image::load_from_memory(&v) {
+        Ok(img) => img,
         Err(error) => {
             return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
-                format!("Failed to get lock on wisard: {}", error),
+                format!("Failed to get image: {}", error),
             )))
         }
     };
 
-    match unlocked_wis.train(v.iter().map(|x| K::from(*x)).collect(), label_r.label) {
+    let mut unlocked_wis = match wis.write() {
+        Ok(unlocked_wis) => unlocked_wis,
+        Err(error) => {
+            return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
+                format!("Failed to get lock on WiSARD: {}", error),
+            )))
+        }
+    };
+
+    let target_size = unlocked_wis.target_size();
+
+    match unlocked_wis.train(
+        img.grayscale()
+            .resize_exact(target_size.0, target_size.1, imageops::Nearest)
+            .as_bytes()
+            .iter()
+            .map(|x| K::from(*x))
+            .collect(),
+        label_r.label,
+    ) {
         Ok(_) => return Ok(HttpResponse::Ok().into()),
         Err(error) => {
             return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
@@ -172,16 +192,34 @@ where
         v.write_all(&data).await?;
     }
 
-    let unlocked_wis = match wis.read() {
-        Ok(unlocked_wis) => unlocked_wis,
+    let img = match image::load_from_memory(&v) {
+        Ok(img) => img,
         Err(error) => {
             return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
-                format!("Failed to get lock on wisard: {}", error),
+                format!("Failed to get image: {}", error),
             )))
         }
     };
 
-    match unlocked_wis.classify(v.iter().map(|x| K::from(*x)).collect()) {
+    let unlocked_wis = match wis.read() {
+        Ok(unlocked_wis) => unlocked_wis,
+        Err(error) => {
+            return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
+                format!("Failed to get lock on WiSARD: {}", error),
+            )))
+        }
+    };
+
+    let target_size = unlocked_wis.target_size();
+
+    match unlocked_wis.classify(
+        img.grayscale()
+            .resize_exact(target_size.0, target_size.1, imageops::Nearest)
+            .as_bytes()
+            .iter()
+            .map(|x| K::from(*x))
+            .collect(),
+    ) {
         Ok(label) => return Ok(HttpResponse::Ok().json(ClassifyResponse { label: label })),
         Err(error) => {
             return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
@@ -200,7 +238,7 @@ where
         Ok(unlocked_wis) => unlocked_wis,
         Err(error) => {
             return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
-                format!("Failed to get lock on wisard: {}", error),
+                format!("Failed to get lock on WiSARD: {}", error),
             )))
         }
     };
@@ -243,7 +281,7 @@ where
         Ok(unlocked_wis) => unlocked_wis,
         Err(error) => {
             return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
-                format!("Failed to get lock on wisard: {}", error),
+                format!("Failed to get lock on WiSARD: {}", error),
             )))
         }
     };
@@ -267,7 +305,7 @@ where
         Ok(unlocked_wis) => unlocked_wis,
         Err(error) => {
             return Ok(HttpResponse::from_error(error::ErrorInternalServerError(
-                format!("Failed to get lock on wisard: {}", error),
+                format!("Failed to get lock on WiSARD: {}", error),
             )))
         }
     };
